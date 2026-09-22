@@ -167,72 +167,59 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       window.removeEventListener('touchend', handlePointerUp);
       setDraggingId(null);
 
-      // If user tapped without dragging, trigger modal according to phase
+      // If user tapped without dragging, trigger modal according to item type & phase
       if (!hasMovedSignificantly.current) {
         onSelectItem(id);
         const clickedItem = items.find((i) => i.id === id);
         if (!clickedItem) return;
 
-        if (currentPhase === 1) {
-          setModalMode('configure');
-        } else if (currentPhase === 2) {
-          if (['instrument', 'vocal'].includes(clickedItem.category)) {
-            setModalMode('patch_input');
-          } else {
-            setModalMode('configure');
-          }
-        } else if (currentPhase === 3) {
+        // If clicked item is a speaker or wedge, ALWAYS open patch_output!
+        if (
+          ['pa_speaker', 'wedge', 'monitor_wedge', 'iem_station'].includes(clickedItem.subType) ||
+          clickedItem.category === 'pa_speaker' ||
+          clickedItem.category === 'monitor_wedge'
+        ) {
+          setModalMode('patch_output');
+        } else if (currentPhase === 2 && ['instrument', 'vocal'].includes(clickedItem.category)) {
+          // In Phase 2: open XR18PatchModal with channel picker + mic picker
+          setModalMode('patch_input');
+        } else if (currentPhase === 3 && clickedItem.needsPower230V && clickedItem.category !== 'power_strip') {
           // In Phase 3: Connect to power strip
-          if (clickedItem.needsPower230V && clickedItem.category !== 'power_strip') {
-            const strips = items.filter((i) => i.category === 'power_strip');
-            if (strips.length === 0) {
-              alert('Nejprve přidejte na pódium tlačítkem nahoře "+ Prodlužka 230V"!');
-            } else {
-              // Check if already connected to any power strip
-              const existingPowerCable = cables.find(
-                (c) => c.type === 'power' && c.toId === clickedItem.id
+          const strips = items.filter((i) => i.category === 'power_strip');
+          if (strips.length === 0) {
+            alert('Nejprve přidejte na pódium tlačítkem nahoře "+ Prodlužka 230V"!');
+          } else {
+            const existingPowerCable = cables.find(
+              (c) => c.type === 'power' && c.toId === clickedItem.id
+            );
+            if (existingPowerCable) {
+              onUpdateCables(cables.filter((c) => c.id !== existingPowerCable.id));
+              onUpdateItems(
+                items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: undefined } : it))
               );
-              if (existingPowerCable) {
-                // Toggle off
-                onUpdateCables(cables.filter((c) => c.id !== existingPowerCable.id));
-                onUpdateItems(
-                  items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: undefined } : it))
-                );
-              } else {
-                // Find nearest power strip by distance on stage
-                let nearestStrip = strips[0];
-                let minDistance = Infinity;
-                for (const s of strips) {
-                  const dist = Math.hypot((s.x ?? 50) - (clickedItem.x ?? 50), (s.y ?? 50) - (clickedItem.y ?? 50));
-                  if (dist < minDistance) {
-                    minDistance = dist;
-                    nearestStrip = s;
-                  }
+            } else {
+              let nearestStrip = strips[0];
+              let minDistance = Infinity;
+              for (const s of strips) {
+                const dist = Math.hypot((s.x ?? 50) - (clickedItem.x ?? 50), (s.y ?? 50) - (clickedItem.y ?? 50));
+                if (dist < minDistance) {
+                  minDistance = dist;
+                  nearestStrip = s;
                 }
-
-                // Add power cable from nearest strip
-                const newCable: StageCable = {
-                  id: 'pwr-' + Date.now(),
-                  fromId: nearestStrip.id,
-                  toId: clickedItem.id,
-                  type: 'power',
-                  lengthMeters: 5,
-                  label: '230V',
-                };
-                onUpdateCables([...cables, newCable]);
-                onUpdateItems(
-                  items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: nearestStrip.id } : it))
-                );
               }
+              const newCable: StageCable = {
+                id: 'pwr-' + Date.now(),
+                fromId: nearestStrip.id,
+                toId: clickedItem.id,
+                type: 'power',
+                lengthMeters: 5,
+                label: '230V',
+              };
+              onUpdateCables([...cables, newCable]);
+              onUpdateItems(
+                items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: nearestStrip.id } : it))
+              );
             }
-          } else {
-            setModalMode('configure');
-          }
-        } else if (currentPhase === 4) {
-          if (['pa_speaker', 'wedge', 'monitor_wedge', 'iem_station'].includes(clickedItem.subType) || clickedItem.category === 'pa_speaker') {
-            setModalMode('patch_output');
-          } else {
-            setModalMode('configure');
           }
         } else {
           setModalMode('configure');
@@ -250,7 +237,14 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   const xr18Item = items.find((i) => i.subType === 'xr18');
 
   // Handle XR18 Input patch confirmation for specific channel
-  const handleConfirmInputPatch = (channelId: string, channelNumber: number, needsPhantom: boolean, cableLength: number) => {
+  const handleConfirmInputPatch = (
+    channelId: string, 
+    channelNumber: number, 
+    needsPhantom: boolean, 
+    cableLength: number,
+    micModel?: string,
+    pickupType?: 'mic' | 'line_xlr' | 'line_jack' | 'line'
+  ) => {
     if (!selectedItem || !xr18Item) return;
 
     // Disconnect any other channel across all items that was using this channelNumber
@@ -265,6 +259,8 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             assignedChannelNumber: channelNumber,
             needsPhantom48V: needsPhantom,
             cableLengthMeters: cableLength,
+            ...(micModel ? { micModel } : {}),
+            ...(pickupType ? { pickupType } : {}),
           };
         }
         return ch;
@@ -278,7 +274,8 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     );
 
     const subCh = selectedItem.channels.find((c) => c.id === channelId);
-    const cableType = (subCh?.pickupType === 'line_jack' || subCh?.pickupType === 'line') ? 'jack' : 'xlr';
+    const effectivePickup = pickupType || subCh?.pickupType;
+    const cableType = (effectivePickup === 'line_jack' || effectivePickup === 'line') ? 'jack' : 'xlr';
 
     const newCable: StageCable = {
       id: 'cable-' + Date.now() + Math.random().toString(36).slice(2, 5),
@@ -383,13 +380,13 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     <div
       className={
         isFullscreenStage
-          ? 'fixed inset-0 z-50 bg-slate-950 p-1.5 sm:p-2 flex flex-col gap-1.5 select-none overflow-hidden'
+          ? 'fixed inset-0 z-50 bg-slate-950 p-1 sm:p-2 flex flex-col gap-1 overflow-hidden'
           : 'relative w-full flex flex-col gap-2'
       }
     >
       {/* FULLSCREEN HEADER & ACTION CONTROLS */}
       {isFullscreenStage ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl px-2 py-1 flex flex-nowrap items-center justify-between gap-1.5 shadow-xl shrink-0 h-10 sm:h-11 overflow-hidden">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 flex flex-nowrap items-center justify-between gap-1.5 shadow-xl shrink-0 h-9 sm:h-10">
           {/* Phase Stepper Pills */}
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -685,9 +682,9 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       <div
         ref={containerRef}
         onClick={() => onSelectItem(null)}
-        className={`relative w-full bg-slate-950 border-2 border-slate-800 rounded-3xl overflow-hidden shadow-2xl select-none transition-all ${
+        className={`relative w-full bg-slate-950 border-2 border-slate-800 rounded-2xl overflow-hidden shadow-2xl transition-all ${
           isFullscreenStage
-            ? 'flex-1 h-full min-h-[320px]'
+            ? 'flex-1 h-full min-h-0'
             : 'min-h-[390px] sm:min-h-[460px] aspect-[4/3] sm:aspect-[16/10]'
         }`}
         style={{
@@ -752,23 +749,23 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
       {/* Fullscreen Bottom Stepper Footer */}
       {isFullscreenStage && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 flex items-center justify-between text-xs shrink-0 shadow-lg gap-2 h-9">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 flex items-center justify-between text-xs shrink-0 shadow-lg gap-2 h-8 sm:h-9">
           <button
             onClick={() => onSelectPhase?.(Math.max(1, currentPhase - 1) as StagePhase)}
             disabled={currentPhase === 1}
             className={`text-[11px] text-slate-300 hover:text-white flex items-center gap-1 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700 transition ${
-              currentPhase === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              currentPhase === 1 ? 'invisible pointer-events-none' : 'visible'
             }`}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Předchozí krok</span>
           </button>
 
-          <span className="text-[10px] text-slate-400 text-center truncate">
-            {currentPhase === 1 && '💡 Klepnutím na nástroj upravíte mikrofony a linky'}
-            {currentPhase === 2 && '💡 Klepnutím na nástroj zvolíte vstup XR18 a phantom +48V'}
+          <span className="text-[10px] text-slate-400 text-center truncate px-2">
+            {currentPhase === 1 && '💡 Klepnutím na nástroj vyberte mikrofony a linky'}
+            {currentPhase === 2 && '💡 Klepnutím na nástroj zvolte mikrofon, vstup XR18 a phantom'}
             {currentPhase === 3 && '💡 Klepnutím propojíte spotřebič se zásuvkou 230V'}
-            {currentPhase === 4 && '💡 Klepnutím na bednu nastavíte Main L/R nebo Aux 1–6'}
+            {currentPhase === 4 && '💡 Klepnutím na bednu nastavíte typ (aktivní/pasivní) a Aux/Main'}
             {currentPhase === 5 && '✅ Vše připraveno pro tisk faktury a stažení PDF'}
           </span>
 
@@ -792,6 +789,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       {modalMode === 'configure' && selectedItem && (
         <ConfigureItemModal
           item={selectedItem}
+          allItems={items}
           onUpdate={(updated) => {
             onUpdateItems(items.map((i) => (i.id === updated.id ? updated : i)));
           }}

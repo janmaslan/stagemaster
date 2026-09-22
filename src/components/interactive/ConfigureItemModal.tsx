@@ -12,11 +12,16 @@ import {
   Trash2, 
   Check, 
   Plus,
-  Edit2
+  Edit2,
+  Speaker,
+  Volume2,
+  Cable,
+  User
 } from 'lucide-react';
 
 interface ConfigureItemModalProps {
   item: InteractiveStageItem;
+  allItems?: InteractiveStageItem[];
   onUpdate: (updated: InteractiveStageItem) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -24,12 +29,12 @@ interface ConfigureItemModalProps {
 
 // User requested microphone choices
 const POPULAR_MICS = [
-  { label: 'Shure SM58', full: 'Shure SM58 (Zpěv)' },
-  { label: 'Shure SM57', full: 'Shure SM57 (Nástroj/Kombo)' },
-  { label: 'Sennheiser e604', full: 'Sennheiser e604 (Tom clip)' },
-  { label: 'Shure Beta 91A', full: 'Shure Beta 91A (Kopák hraniční)' },
-  { label: 'Shure Beta 52A', full: 'Shure Beta 52A (Kopák basový)' },
-  { label: 'Røde NT5', full: 'Rode NT5 (Kondenzátor)' },
+  { label: 'Shure SM58', full: 'Shure SM58 (Zpěv)', phantom: false },
+  { label: 'Shure SM57', full: 'Shure SM57 (Nástroj/Kombo)', phantom: false },
+  { label: 'Sennheiser e604', full: 'Sennheiser e604 (Tom clip)', phantom: false },
+  { label: 'Shure Beta 91A', full: 'Shure Beta 91A (Kopák hraniční)', phantom: true },
+  { label: 'Shure Beta 52A', full: 'Shure Beta 52A (Kopák basový)', phantom: false },
+  { label: 'Røde NT5', full: 'Rode NT5 (Kondenzátor)', phantom: true },
 ];
 
 const POPULAR_DIRECT_XLR = [
@@ -57,6 +62,7 @@ const NAME_PRESETS = [
 
 export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
   item,
+  allItems = [],
   onUpdate,
   onDelete,
   onClose,
@@ -67,7 +73,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
   const [rotation, setRotation] = useState<number>(item.rotation || 0);
   const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
 
-  // Channels state
+  // Channels state (for instruments/vocals)
   const initialChannels: InstrumentChannel[] = (item.channels && item.channels.length > 0)
     ? item.channels
     : [
@@ -82,6 +88,35 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
 
   const [channels, setChannels] = useState<InstrumentChannel[]>(initialChannels);
   const [customInputOpenFor, setCustomInputOpenFor] = useState<Record<string, boolean>>({});
+
+  // Speaker / Output configuration (if item is PA or Wedge)
+  const isPASpeaker = item.subType === 'pa_speaker';
+  const isSpeakerOrWedge = ['pa_speaker', 'wedge', 'monitor_wedge'].includes(item.subType) || item.category === 'pa_speaker' || item.category === 'monitor_wedge';
+
+  const initialSpeakerType: 'active' | 'passive_speakon' | 'passive_jack' = 
+    item.speakerType === 'passive_jack'
+      ? 'passive_jack'
+      : (item.speakerType === 'passive_speakon' || item.speakerType === 'passive')
+      ? 'passive_speakon'
+      : 'active';
+
+  const [speakerType, setSpeakerType] = useState<'active' | 'passive_speakon' | 'passive_jack'>(initialSpeakerType);
+  const [outputPort, setOutputPort] = useState<string>(
+    item.assignedOutputPort || (isPASpeaker ? 'Main L' : 'Aux 1')
+  );
+  const [performer, setPerformer] = useState<string>(item.targetPerformer || '');
+  const [isCustomPerformer, setIsCustomPerformer] = useState<boolean>(false);
+
+  // Candidate performers from stage
+  const stagePerformers = allItems
+    .filter((i) => ['instrument', 'vocal'].includes(i.category))
+    .map((i) => i.name);
+  const defaultPresets = ['Lead Zpěvák', 'Kytarista', 'Baskytarista', 'Bubeník', 'Klávesák'];
+  const performerOptions = Array.from(new Set([...stagePerformers, ...defaultPresets])).slice(0, 8);
+
+  const ports = isPASpeaker
+    ? ['Main L', 'Main R']
+    : ['Aux 1', 'Aux 2', 'Aux 3', 'Aux 4', 'Aux 5', 'Aux 6'];
 
   const handleRotate = () => {
     setRotation((rotation + 90) % 360);
@@ -126,8 +161,13 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
       ...item,
       name,
       channels,
-      needsPower230V: needsPower,
+      needsPower230V: isSpeakerOrWedge ? (speakerType === 'active') : needsPower,
       rotation,
+      ...(isSpeakerOrWedge ? {
+        speakerType,
+        assignedOutputPort: outputPort,
+        targetPerformer: performer,
+      } : {}),
     });
     onClose();
   };
@@ -136,11 +176,11 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-1 sm:p-4 overflow-y-auto overscroll-contain animate-in fade-in duration-150"
       tabIndex={-1}
     >
       <div 
-        className="bg-slate-900 border border-slate-700/80 w-full max-w-2xl rounded-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-slate-900 border border-slate-700/80 w-full max-w-2xl rounded-2xl max-h-[96vh] sm:max-h-[90vh] flex flex-col shadow-2xl my-auto"
         tabIndex={-1}
       >
         {/* Modal Header */}
@@ -163,8 +203,8 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="p-3 sm:p-5 overflow-y-auto space-y-3 flex-1 text-xs">
+        {/* Scrollable Body with touch scroll support */}
+        <div className="p-3 sm:p-5 overflow-y-auto space-y-3.5 flex-1 text-xs overscroll-contain touch-pan-y pb-16 sm:pb-5">
           {/* Top Bar: Name & Rotation & Power */}
           <div className="bg-slate-850/80 border border-slate-750 p-2.5 rounded-xl space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -221,7 +261,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                   key={pName}
                   type="button"
                   onClick={() => setName(pName)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap transition ${
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap transition active:scale-95 ${
                     name === pName
                       ? 'bg-indigo-600 text-white shadow-sm'
                       : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-750'
@@ -232,8 +272,8 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
               ))}
             </div>
 
-            {/* 230V Checkbox */}
-            {item.category !== 'power_strip' && item.category !== 'pa_speaker' && item.category !== 'monitor_wedge' && (
+            {/* 230V Checkbox for non-speakers */}
+            {!isSpeakerOrWedge && item.category !== 'power_strip' && (
               <label className="flex items-center gap-2 pt-1.5 cursor-pointer text-slate-300">
                 <input
                   type="checkbox"
@@ -249,7 +289,156 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
             )}
           </div>
 
-          {/* Microphones & Inputs Section */}
+          {/* SPEAKER / WEDGE CONFIGURATION SECTION */}
+          {isSpeakerOrWedge && (
+            <div className="space-y-3 p-3 rounded-xl bg-slate-850/90 border border-slate-750">
+              <span className="font-bold text-sky-300 flex items-center gap-1.5 text-xs">
+                {isPASpeaker ? <Speaker className="w-4 h-4 text-indigo-400" /> : <Volume2 className="w-4 h-4 text-sky-400" />}
+                <span>Typ reprobedny &amp; výstup XR18</span>
+              </span>
+
+              {/* 3 Speaker Types */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-300 block">
+                  Typ reprobedny &amp; kabeláže:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSpeakerType('active')}
+                    className={`p-2 rounded-xl border text-center transition active:scale-95 ${
+                      speakerType === 'active'
+                        ? 'bg-sky-600 border-sky-400 text-white font-bold shadow-md shadow-sky-600/30'
+                        : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold flex items-center justify-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-sky-300" />
+                      <span>Aktivní bedna</span>
+                    </div>
+                    <div className="text-[9px] opacity-80 mt-0.5">XLR signál + 230V proud</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSpeakerType('passive_speakon')}
+                    className={`p-2 rounded-xl border text-center transition active:scale-95 ${
+                      speakerType === 'passive_speakon'
+                        ? 'bg-amber-600 border-amber-400 text-white font-bold shadow-md shadow-amber-600/30'
+                        : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold flex items-center justify-center gap-1">
+                      <Speaker className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Pasivní + Speakon</span>
+                    </div>
+                    <div className="text-[9px] opacity-80 mt-0.5">Ze zesilovače (bez 230V)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSpeakerType('passive_jack')}
+                    className={`p-2 rounded-xl border text-center transition active:scale-95 ${
+                      speakerType === 'passive_jack'
+                        ? 'bg-emerald-600 border-emerald-400 text-white font-bold shadow-md shadow-emerald-600/30'
+                        : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold flex items-center justify-center gap-1">
+                      <Cable className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Pasivní + Jack 6.3</span>
+                    </div>
+                    <div className="text-[9px] opacity-80 mt-0.5">Ze zesilovače (bez 230V)</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Port selector */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] font-bold text-slate-300 block">
+                  {isPASpeaker ? 'Výstup z XR18:' : 'Která Aux sběrnice na XR18 to bude?'}
+                </label>
+                <div className={`grid gap-1.5 ${isPASpeaker ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-6'}`}>
+                  {ports.map((p) => {
+                    const isSelected = outputPort === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setOutputPort(p)}
+                        className={`py-2 px-1 rounded-xl border text-center transition font-mono font-bold text-xs active:scale-95 ${
+                          isSelected
+                            ? 'bg-sky-600 text-white border-sky-400 shadow-md ring-1 ring-sky-300'
+                            : 'bg-slate-900 border-slate-700 text-slate-200 hover:border-slate-500'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Target Performer (only for monitors) */}
+              {!isPASpeaker && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Pro koho tento odposlech je (výběr 1 klepnutím):</span>
+                  </label>
+
+                  <div className="flex flex-wrap gap-1">
+                    {performerOptions.map((opt) => {
+                      const isSelected = performer === opt;
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            setPerformer(opt);
+                            setIsCustomPerformer(false);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
+                            isSelected
+                              ? 'bg-sky-600 text-white shadow ring-1 ring-sky-300'
+                              : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomPerformer(!isCustomPerformer)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                        isCustomPerformer
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-900 text-slate-400 border border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      ✏️ Vlastní...
+                    </button>
+                  </div>
+
+                  {isCustomPerformer && (
+                    <div className="pt-1.5 animate-in fade-in">
+                      <input
+                        type="text"
+                        value={performer}
+                        onChange={(e) => setPerformer(e.target.value)}
+                        placeholder="Např. Host, Saxofonista, Vokál vlevo..."
+                        className="w-full bg-slate-900 border border-indigo-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Microphones & Inputs Section for Instruments and Vocals */}
           {isInstrumentOrVocal && (
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -312,7 +501,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                               stand: ch.stand === 'none' ? 'high_boom' : ch.stand,
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center ${
+                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'mic'
                               ? 'bg-rose-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
@@ -330,7 +519,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                               stand: 'none',
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center ${
+                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'line_xlr'
                               ? 'bg-sky-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
@@ -348,7 +537,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                               stand: 'none',
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center ${
+                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'line_jack' || ch.pickupType === 'line'
                               ? 'bg-amber-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
@@ -378,7 +567,10 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                                     key={mic.label}
                                     type="button"
                                     onClick={() => {
-                                      handleUpdateChannel(ch.id, { micModel: mic.full });
+                                      handleUpdateChannel(ch.id, { 
+                                        micModel: mic.full,
+                                        needsPhantom48V: mic.phantom
+                                      });
                                       setCustomInputOpenFor({ ...customInputOpenFor, [ch.id]: false });
                                     }}
                                     className={`px-2 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
@@ -388,6 +580,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                                     }`}
                                   >
                                     {mic.label}
+                                    {mic.phantom && <span className="ml-1 text-[8px] text-amber-300 font-mono">+48V</span>}
                                   </button>
                                 );
                               })}
@@ -494,7 +687,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                                 key={st}
                                 type="button"
                                 onClick={() => handleUpdateChannel(ch.id, { stand: st })}
-                                className={`px-2 py-0.5 rounded text-[9px] font-semibold transition ${
+                                className={`px-2 py-0.5 rounded text-[9px] font-semibold transition active:scale-95 ${
                                   isSel
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'bg-slate-900 text-slate-400 border border-slate-750'

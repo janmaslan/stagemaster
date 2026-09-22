@@ -668,7 +668,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
 
           <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between gap-3">
             <span>
-              💡 Klepněte na libovolný nástroj na pódiu a zvolte <b>Vstup XR18 (CH 1–16)</b> a <b>+48V phantom</b>. U bicích lze zapojit každý mikrofon do zvláštního kanálu.
+              💡 Klepněte na libovolný nástroj a zvolte <b>model mikrofonu</b> (Shure SM58, SM57, e604, Beta 91A, Beta 52A, NT5...), <b>vstup XR18 (CH 1–16)</b> a <b>phantom +48V</b>.
             </span>
 
             <button
@@ -732,7 +732,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
           </div>
 
           <p className="text-[11px] text-slate-400 leading-tight">
-            Klepnutím na bednu zvolíte, zda jde o <b>⚡ Aktivní bednu</b> (vyžaduje XLR signál + 230V proud) nebo <b>🔊 Pasivní bednu</b> (Speakon ze zesilovače, na pódiu bez 230V).
+            Klepnutím na bednu zvolíte typ: <b>⚡ Aktivní bedna</b> (XLR + 230V), <b>🔊 Pasivní + Speakon</b> nebo <b>🔌 Pasivní + Jack 6.3mm</b> (ze zesilovače), výstup z XR18 a pro koho odposlech je.
           </p>
         </div>
       )}
@@ -1318,7 +1318,11 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
         <button
           onClick={() => onSelectPhase(Math.max(1, currentPhase - 1) as StagePhase)}
           disabled={currentPhase === 1}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-300 font-semibold rounded-xl text-xs flex items-center gap-1.5 border border-slate-800 transition"
+          className={`px-4 py-2 font-semibold rounded-xl text-xs flex items-center gap-1.5 border border-slate-800 transition ${
+            currentPhase === 1
+              ? 'invisible pointer-events-none'
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-300'
+          }`}
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Předchozí krok</span>

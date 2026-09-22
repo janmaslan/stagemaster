@@ -61,11 +61,11 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-1 sm:p-4 overflow-y-auto overscroll-contain animate-in fade-in duration-150"
       tabIndex={-1}
     >
       <div 
-        className="bg-slate-900 border border-slate-700/80 w-full max-w-xl rounded-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-slate-900 border border-slate-700/80 w-full max-w-xl rounded-2xl max-h-[96vh] sm:max-h-[90vh] flex flex-col shadow-2xl my-auto"
         tabIndex={-1}
       >
         {/* Header */}
@@ -94,7 +94,7 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-3 sm:p-5 overflow-y-auto space-y-3 flex-1 text-xs">
+        <div className="p-3 sm:p-5 overflow-y-auto space-y-3 flex-1 text-xs overscroll-contain touch-pan-y pb-16 sm:pb-5">
           {/* 3 Speaker Types: Active vs Passive Speakon vs Passive Jack */}
           <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-850/80 border border-slate-750">
             <label className="text-[11px] font-bold text-slate-200 block">

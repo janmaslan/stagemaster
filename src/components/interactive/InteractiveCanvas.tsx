@@ -26,7 +26,7 @@ import {
   Camera
 } from 'lucide-react';
 import { getPresetInstrument } from '../../utils/stagePresets';
-import { exportStageCanvasImage } from '../../utils/pdfExport';
+import { exportStagePlanImage, exportStageCanvasImage } from '../../utils/pdfExport';
 
 interface InteractiveCanvasProps {
   items: InteractiveStageItem[];
@@ -60,11 +60,17 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isExportingImage, setIsExportingImage] = useState(false);
 
-  const handleDownloadStageImage = async () => {
-    if (!containerRef.current) return;
+  // Keep window global state synchronized for any external exporter
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__STAGE_STATE__ = { items, cables, bandName };
+    }
+  }, [items, cables, bandName]);
+
+  const handleDownloadStageImage = () => {
     setIsExportingImage(true);
     try {
-      await exportStageCanvasImage(containerRef.current, bandName);
+      exportStagePlanImage({ items, cables, bandName });
     } catch (err) {
       console.error('Export stage image failed:', err);
       alert('Nepodařilo se vygenerovat obrázek pódia.');

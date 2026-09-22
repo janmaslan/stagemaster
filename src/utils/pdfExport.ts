@@ -1,6 +1,10 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import { InvoiceData, InteractiveStageItem, InstrumentChannel } from '../types/interactiveStage';
+import { 
+  InvoiceData, 
+  InteractiveStageItem, 
+  InstrumentChannel,
+  StageCable 
+} from '../types/interactiveStage';
 
 export interface ExportPdfParams {
   bandName: string;
@@ -19,40 +23,542 @@ export interface ExportPdfParams {
   standCounts: Record<string, number>;
 }
 
+export interface ExportStagePlanImageParams {
+  items: InteractiveStageItem[];
+  cables?: StageCable[];
+  bandName?: string;
+  eventName?: string;
+}
+
 const A4_W = 1600;
 const A4_H = 2262;
 
 /**
- * Capture 2D Stage Canvas layout and download as high-res 2x PNG image
+ * High-definition Canvas 2D Stage Layout Exporter
+ * Generates an ultra-crisp 1920x1200 PNG diagram of the stage with all instruments,
+ * monitors, 230V power points, cables, orientation markers, and legend.
+ * 100% immune to CSS parsing bugs (like Tailwind v4 oklch).
  */
-export async function exportStageCanvasImage(
-  target?: HTMLElement | string | null,
-  bandName = 'Kapela'
-): Promise<void> {
-  let element: HTMLElement | null = null;
-  if (!target || typeof target === 'string') {
-    const id = typeof target === 'string' ? target : 'stage-canvas-capture';
-    element = document.getElementById(id);
-  } else {
-    element = target;
+export function exportStagePlanImage({
+  items,
+  cables = [],
+  bandName = 'Kapela',
+  eventName,
+}: ExportStagePlanImageParams): void {
+  const W = 1920;
+  const H = 1200;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    alert('Nepodařilo se vytvořit canvas pro export obrázku.');
+    return;
   }
 
-  if (!element) {
-    throw new Error('Stage canvas element not found');
+  // 1. Overall Dark Background
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Top Title Bar & Meta
+  ctx.save();
+  // Pill badge
+  ctx.fillStyle = '#4338ca';
+  roundRect(ctx, 80, 34, 200, 26, 8, true, false);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('STAGEMASTER PRO', 180, 47);
+
+  // Band Title
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  const titleStr = bandName || 'Koncertní Stage Plán';
+  ctx.fillText(titleStr, 80, 96);
+
+  // Subtitle
+  const titleW = ctx.measureText(titleStr).width;
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(
+    eventName ? `•  ${eventName}` : '•  Grafické rozmístění pódia, monitoring & kabeláž XR18',
+    80 + titleW + 18,
+    94
+  );
+
+  // Right-aligned meta
+  ctx.textAlign = 'right';
+  ctx.font = '15px sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText(`Vygenerováno: ${new Date().toLocaleDateString('cs-CZ')}`, W - 80, 52);
+  ctx.fillStyle = '#818cf8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('Digitální mixážní pult: Behringer XR18', W - 80, 88);
+  ctx.restore();
+
+  // 3. Stage Boundaries & Dimensions
+  const stageX = 80;
+  const stageY = 125;
+  const stageW = W - 160; // 1760px
+  const stageH = 880;
+
+  // Stage Floor with Radial Gradient
+  ctx.save();
+  const grad = ctx.createRadialGradient(
+    stageX + stageW / 2,
+    stageY + stageH / 2,
+    40,
+    stageX + stageW / 2,
+    stageY + stageH / 2,
+    850
+  );
+  grad.addColorStop(0, '#0d1527');
+  grad.addColorStop(1, '#020617');
+  ctx.fillStyle = grad;
+  roundRect(ctx, stageX, stageY, stageW, stageH, 18, true, false);
+
+  // Subtle Dot Grid
+  ctx.fillStyle = '#1e293b';
+  for (let gx = stageX + 36; gx < stageX + stageW - 20; gx += 32) {
+    for (let gy = stageY + 54; gy < stageY + stageH - 54; gy += 32) {
+      ctx.beginPath();
+      ctx.arc(gx, gy, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  const canvas = await html2canvas(element, {
-    scale: 2, // High resolution (Retina/2x)
-    backgroundColor: '#020617',
-    useCORS: true,
-    logging: false,
+  // Stage Outer Border
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  roundRect(ctx, stageX, stageY, stageW, stageH, 18, false, true);
+  ctx.restore();
+
+  // 4. Backstage Header (Top of stage)
+  ctx.save();
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+  roundRect(ctx, stageX + 2, stageY + 2, stageW - 4, 38, 16, true, false);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(stageX + 2, stageY + 40);
+  ctx.lineTo(stageX + stageW - 2, stageY + 40);
+  ctx.stroke();
+
+  ctx.font = 'bold 12px monospace';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('◄◄ BACKSTAGE (ZÁKULISÍ)', stageX + 25, stageY + 20);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('BACKSTAGE (ZÁKULISÍ) ►►', stageX + stageW - 25, stageY + 20);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('ZADNÍ ČÁST PÓDIA', stageX + stageW / 2, stageY + 20);
+  ctx.restore();
+
+  // 5. Front Stage / Audience Banner (Bottom of stage)
+  ctx.save();
+  const btmY = stageY + stageH - 44;
+  ctx.fillStyle = 'rgba(30, 27, 75, 0.92)';
+  roundRect(ctx, stageX + 2, btmY, stageW - 4, 42, 16, true, false);
+  ctx.strokeStyle = '#4338ca';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(stageX + 2, btmY);
+  ctx.lineTo(stageX + stageW - 2, btmY);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#c7d2fe';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('▼▼ PŘEDEK PÓDIA — PUBLIKUM & REŽIE ZVUKU (FOH) ▼▼', stageX + stageW / 2, btmY + 21);
+  ctx.restore();
+
+  // Stage Left & Right Side Markers
+  ctx.save();
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('◄ STAGE RIGHT (VLEVO Z POHLEDU PUBLIKA)', stageX + 20, stageY + stageH / 2);
+  ctx.textAlign = 'right';
+  ctx.fillText('STAGE LEFT (VPRAVO Z POHLEDU PUBLIKA) ►', stageX + stageW - 20, stageY + stageH / 2);
+  ctx.restore();
+
+  // 6. Coordinates Helper
+  const getItemPos = (item: InteractiveStageItem) => {
+    const clampedX = Math.max(5, Math.min(95, item.x ?? 50));
+    const clampedY = Math.max(8, Math.min(88, item.y ?? 50));
+    const px = stageX + (clampedX / 100) * stageW;
+    const py = stageY + (clampedY / 100) * stageH;
+    return { px, py };
+  };
+
+  // 7. Cables Layer
+  const itemMap = new Map<string, InteractiveStageItem>();
+  items.forEach((it) => itemMap.set(it.id, it));
+
+  (cables || []).forEach((cable, idx) => {
+    const from = itemMap.get(cable.fromId);
+    const to = itemMap.get(cable.toId);
+    if (!from || !to) return;
+
+    const { px: fx, py: fy } = getItemPos(from);
+    const { px: tx, py: ty } = getItemPos(to);
+
+    const dx = tx - fx;
+    const dy = ty - fy;
+    const offset = ((idx % 5) - 2) * 22;
+    const cx1 = fx + dx * 0.25 + offset;
+    const cy1 = fy + dy * 0.75 + (dx > 0 ? 35 : -35) + offset;
+    const cx2 = fx + dx * 0.75 - offset;
+    const cy2 = fy + dy * 0.25 - (dy > 0 ? 35 : -35) - offset;
+
+    // Dark under-halo
+    ctx.save();
+    ctx.strokeStyle = '#020617';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.bezierCurveTo(cx1, cy1, cx2, cy2, tx, ty);
+    ctx.stroke();
+
+    // Colored cable stroke
+    let cableColor = '#38bdf8'; // XLR default
+    let pillBg = '#0284c7';
+    if (cable.type === 'jack') {
+      cableColor = '#facc15';
+      pillBg = '#ca8a04';
+      ctx.setLineDash([]);
+    } else if (cable.type === 'power') {
+      cableColor = '#ef4444';
+      pillBg = '#b91c1c';
+      ctx.setLineDash([8, 6]);
+    } else if (cable.type === 'speakon') {
+      cableColor = '#fb923c';
+      pillBg = '#c2410c';
+      ctx.setLineDash([]);
+    } else {
+      ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle = cableColor;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.bezierCurveTo(cx1, cy1, cx2, cy2, tx, ty);
+    ctx.stroke();
+    ctx.restore();
+
+    // Cable label pill in middle
+    const midX = (fx + tx) / 2 + offset * 0.5;
+    const midY = (fy + ty) / 2 + offset * 0.5;
+    const labelText = cable.label || (cable.type === 'power' ? '230V' : cable.type.toUpperCase());
+
+    ctx.save();
+    ctx.font = 'bold 11px sans-serif';
+    const textW = ctx.measureText(labelText).width;
+    const pillW = textW + 14;
+    const pillH = 18;
+
+    ctx.fillStyle = pillBg;
+    roundRect(ctx, midX - pillW / 2, midY - pillH / 2, pillW, pillH, 6, true, false);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, midX, midY);
+    ctx.restore();
   });
 
+  // 8. Items Layer
+  const getSymbol = (item: InteractiveStageItem): string => {
+    if (item.speakerType === 'iem' || item.subType === 'iem_station') return '🎧';
+    switch (item.subType) {
+      case 'drums': return '🥁';
+      case 'guitar_amp': return '🎸';
+      case 'bass_amp': return '🎸';
+      case 'keyboard': return '🎹';
+      case 'acoustic_guitar': return '🎸';
+      case 'lead_vox':
+      case 'backing_vox':
+      case 'vocal': return '🎙️';
+      case 'pa_speaker': return '🔊';
+      case 'wedge':
+      case 'monitor_wedge': return '🔊';
+      case 'xr18':
+      case 'mixer': return '🎛️';
+      default: return '🎵';
+    }
+  };
+
+  items.forEach((item) => {
+    const { px, py } = getItemPos(item);
+
+    // Case A: 230V Power Source (Hlavní přípojka)
+    if (item.subType === 'power_source' || item.category === 'power_source') {
+      ctx.save();
+      const pw = 114;
+      const ph = 34;
+      ctx.fillStyle = '#451a03';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      roundRect(ctx, px - pw / 2, py - ph / 2, pw, ph, 10, true, true);
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`⚡ ${item.name}`, px, py);
+      ctx.restore();
+      return;
+    }
+
+    // Case B: 230V Power Strip (Prodlužka)
+    if (item.subType === 'power_strip') {
+      ctx.save();
+      const pw = 84;
+      const ph = 28;
+      ctx.fillStyle = '#450a0a';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      roundRect(ctx, px - pw / 2, py - ph / 2, pw, ph, 10, true, true);
+      ctx.fillStyle = '#fee2e2';
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const shortName = item.name.replace('Prodlužka 230V', '230V').replace('Prodlužka', '230V');
+      ctx.fillText(`🔌 ${shortName}`, px, py);
+      ctx.restore();
+      return;
+    }
+
+    // Case C: Standard Instrument / Vocal / Speaker / Mixer Card
+    const cardW = 100;
+    const cardH = 76;
+    const cardX = px - cardW / 2;
+    const cardY = py - cardH / 2;
+
+    ctx.save();
+    const isMixer = item.subType === 'xr18' || item.subType === 'mixer';
+    const isIem = item.speakerType === 'iem' || item.subType === 'iem_station';
+
+    ctx.fillStyle = isMixer ? '#1e1b4b' : isIem ? '#2e1065' : '#0f172a';
+    ctx.strokeStyle = isMixer ? '#6366f1' : isIem ? '#a855f7' : '#334155';
+    ctx.lineWidth = 2;
+    roundRect(ctx, cardX, cardY, cardW, cardH, 12, true, true);
+
+    // Emoji Symbol
+    const symbol = getSymbol(item);
+    ctx.font = '28px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol, px, py - 9);
+
+    // Label pill at bottom of card
+    const labelH = 18;
+    const labelW = cardW - 12;
+    ctx.fillStyle = '#020617';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    roundRect(ctx, px - labelW / 2, cardY + cardH - labelH - 5, labelW, labelH, 5, true, true);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let displayName = item.name;
+    if (ctx.measureText(displayName).width > labelW - 6) {
+      while (displayName.length > 2 && ctx.measureText(displayName + '…').width > labelW - 6) {
+        displayName = displayName.slice(0, -1);
+      }
+      displayName += '…';
+    }
+    ctx.fillText(displayName, px, cardY + cardH - labelH / 2 - 5);
+
+    // Channel badge (Top-Left)
+    const chNums = item.channels?.map((c) => c.assignedChannelNumber).filter((n): n is number => typeof n === 'number') || [];
+    if (chNums.length > 0) {
+      const hasPhantom = item.channels?.some((c) => c.needsPhantom48V);
+      const chText = `CH ${chNums.join(',')}${hasPhantom ? ' +48V' : ''}`;
+      ctx.font = 'bold 9.5px monospace';
+      const chW = ctx.measureText(chText).width + 8;
+      ctx.fillStyle = '#4338ca';
+      roundRect(ctx, cardX - 4, cardY - 8, chW, 16, 4, true, false);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chText, cardX, cardY);
+    }
+
+    // Output port badge (Top-Right)
+    if (item.assignedOutputPort) {
+      const outText = item.assignedOutputPort;
+      ctx.font = 'bold 9.5px monospace';
+      const outW = ctx.measureText(outText).width + 8;
+      ctx.fillStyle = '#0284c7';
+      roundRect(ctx, cardX + cardW - outW + 4, cardY - 8, outW, 16, 4, true, false);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(outText, cardX + cardW - outW / 2 + 4, cardY);
+    } else if (item.needsPower230V) {
+      // 230V power required circle indicator
+      const pX = cardX + cardW - 3;
+      const pY = cardY + 3;
+      ctx.fillStyle = item.powerConnectedToId ? '#16a34a' : '#dc2626';
+      ctx.beginPath();
+      ctx.arc(pX, pY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚡', pX, pY);
+    }
+
+    // Multi-channel badge (Bottom-Right)
+    if (item.channels && item.channels.length > 1) {
+      const cntText = `${item.channels.length}×`;
+      ctx.font = 'bold 9px sans-serif';
+      const cntW = ctx.measureText(cntText).width + 6;
+      ctx.fillStyle = '#1e293b';
+      roundRect(ctx, cardX + cardW - cntW + 4, cardY + cardH - 12, cntW, 14, 4, true, false);
+      ctx.fillStyle = '#fde047';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cntText, cardX + cardW - cntW / 2 + 4, cardY + cardH - 5);
+    }
+
+    ctx.restore();
+  });
+
+  // 9. Bottom Legend Bar
+  ctx.save();
+  const legX = 80;
+  const legY = 1030;
+  const legW = stageW;
+  const legH = 135;
+
+  ctx.fillStyle = 'rgba(9, 13, 22, 0.95)';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  roundRect(ctx, legX, legY, legW, legH, 14, true, true);
+
+  // Legend Title
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('LEGENDA KABELÁŽE & SYMBOLŮ:', legX + 24, legY + 28);
+
+  // Cable samples (Row 1)
+  const drawCableSample = (
+    color: string,
+    dash: number[],
+    text: string,
+    x: number,
+    y: number
+  ) => {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3.5;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 36, y);
+    ctx.stroke();
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + 44, y);
+    ctx.restore();
+  };
+
+  drawCableSample('#38bdf8', [], 'XLR Mikrofonní / Linkový kabel (XR18 In / Out)', legX + 24, legY + 62);
+  drawCableSample('#facc15', [], 'Jack 6.3mm Nástrojový kabel (Klávesy, Linky)', legX + 460, legY + 62);
+  drawCableSample('#fb923c', [], 'Speakon Reproduktorový kabel (Pasivní PA)', legX + 890, legY + 62);
+  drawCableSample('#ef4444', [8, 5], '230V Síťové napájení & prodlužky', legX + 1300, legY + 62);
+
+  // Stats / Counters (Row 2)
+  const soundSources = items.filter((i) => ['instrument', 'vocal'].includes(i.category)).length;
+  const monitorsCount = items.filter((i) =>
+    ['pa_speaker', 'monitor_wedge', 'iem_station'].includes(i.category)
+  ).length;
+  const pwrCount = items.filter((i) =>
+    i.category === 'power_source' || i.category === 'power_strip' || i.subType === 'power_strip' || i.subType === 'power_source'
+  ).length;
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '13px sans-serif';
+  ctx.fillText(
+    `Nástroje & Zpěvy: ${soundSources}   |   Monitoring & PA: ${monitorsCount}   |   Přípojky 230V: ${pwrCount}   |   Kabelové trasy: ${(cables || []).length} ks`,
+    legX + 24,
+    legY + 98
+  );
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#818cf8';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('StageMaster Pro • Profesionální ozvučení & technický stage plán', legX + legW - 24, legY + 98);
+  ctx.restore();
+
+  // 10. Trigger PNG Download
   const cleanName = (bandName || 'Kapela').trim().replace(/[\s/\\?%*:|"<>]+/g, '_');
   const link = document.createElement('a');
   link.download = `StagePlan_Podium_${cleanName}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
+}
+
+/**
+ * Capture 2D Stage Canvas layout and download as high-res PNG image
+ * Retained for backward-compatibility; now powered by native Canvas 2D engine
+ */
+export async function exportStageCanvasImage(
+  target?: any,
+  bandName = 'Kapela'
+): Promise<void> {
+  // If called directly with items/cables
+  if (target && typeof target === 'object' && Array.isArray(target.items)) {
+    exportStagePlanImage({
+      items: target.items,
+      cables: target.cables,
+      bandName: target.bandName || bandName,
+      eventName: target.eventName,
+    });
+    return;
+  }
+
+  // Fallback: check window.__STAGE_STATE__
+  const winState = typeof window !== 'undefined' ? (window as any).__STAGE_STATE__ : null;
+  if (winState && Array.isArray(winState.items)) {
+    exportStagePlanImage({
+      items: winState.items,
+      cables: winState.cables,
+      bandName: winState.bandName || bandName,
+      eventName: winState.eventName,
+    });
+    return;
+  }
+
+  // Fallback empty stage
+  exportStagePlanImage({
+    items: [],
+    cables: [],
+    bandName,
+  });
 }
 
 /**

@@ -40,6 +40,7 @@ import {
 import { 
   exportInvoiceAndRiderPdf, 
   exportStagePlanOnlyPdf, 
+  exportStagePlanImage,
   exportStageCanvasImage 
 } from '../../utils/pdfExport';
 
@@ -585,10 +586,10 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   };
 
   // Export 2D Stage Canvas as PNG Image
-  const handleExportStageImage = async () => {
+  const handleExportStageImage = () => {
     setIsExportingImage(true);
     try {
-      await exportStageCanvasImage('stage-canvas-capture', bandName);
+      exportStagePlanImage({ items, cables, bandName });
     } catch (err) {
       console.error('Stage image export error:', err);
       alert('Nepodařilo se vygenerovat obrázek pódia.');

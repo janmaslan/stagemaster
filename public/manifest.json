@@ -1,0 +1,18 @@
+{
+  "name": "StageMaster Pro - Zvukařský Plán & Patch",
+  "short_name": "StageMaster",
+  "description": "Příprava stage plánu, mixpultu, vstupů a kabeláže pro zvukaře",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

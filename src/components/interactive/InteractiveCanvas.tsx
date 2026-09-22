@@ -9,7 +9,21 @@ import { StageCablesLayer } from './StageCablesLayer';
 import { ConfigureItemModal } from './ConfigureItemModal';
 import { XR18PatchModal } from './XR18PatchModal';
 import { OutputPatchModal } from './OutputPatchModal';
-import { Maximize2, Minimize2, Smartphone } from 'lucide-react';
+import { 
+  Maximize2, 
+  Minimize2, 
+  Smartphone,
+  Plus,
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
+  Music,
+  Cable,
+  Zap,
+  Volume2,
+  CheckSquare
+} from 'lucide-react';
+import { getPresetInstrument } from '../../utils/stagePresets';
 
 interface InteractiveCanvasProps {
   items: InteractiveStageItem[];
@@ -19,6 +33,9 @@ interface InteractiveCanvasProps {
   onSelectItem: (id: string | null) => void;
   onUpdateItems: (items: InteractiveStageItem[]) => void;
   onUpdateCables: (cables: StageCable[]) => void;
+  onSelectPhase?: (phase: StagePhase) => void;
+  onAddItem?: (item: Partial<InteractiveStageItem>) => void;
+  onAutoPatchAll?: () => void;
 }
 
 export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
@@ -29,6 +46,9 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   onSelectItem,
   onUpdateItems,
   onUpdateCables,
+  onSelectPhase,
+  onAddItem,
+  onAutoPatchAll,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -341,82 +361,284 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     );
   };
 
+  const patchedCount = items.reduce((sum, item) => {
+    return sum + (item.channels?.filter((c) => c.assignedChannelNumber).length || 0);
+  }, 0);
+
   return (
     <div
       className={
         isFullscreenStage
-          ? 'fixed inset-0 z-50 bg-slate-950 p-2 sm:p-4 flex flex-col gap-2 select-none overflow-hidden'
+          ? 'fixed inset-0 z-50 bg-slate-950 p-1.5 sm:p-2 flex flex-col gap-1.5 select-none overflow-hidden'
           : 'relative w-full flex flex-col gap-2'
       }
     >
-      {/* Stage Toolbar with Scale and Fullscreen controls */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-            <span>Stage Plán:</span>
-          </span>
+      {/* FULLSCREEN HEADER & ACTION CONTROLS */}
+      {isFullscreenStage ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-1.5 flex flex-wrap items-center justify-between gap-1.5 shadow-xl shrink-0">
+          {/* Phase Stepper Pills */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => onSelectPhase?.(Math.max(1, currentPhase - 1) as StagePhase)}
+              disabled={currentPhase === 1}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-300 rounded-lg text-xs font-bold flex items-center gap-0.5 border border-slate-700 transition"
+              title="Předchozí krok"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
 
-          {/* Component size switcher */}
-          <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-700/80 p-0.5 rounded-xl shadow-inner">
-            <span className="text-[9px] text-slate-400 pl-1.5 pr-0.5 font-semibold">Prvky:</span>
+            <span className="px-2 py-1 rounded-lg bg-indigo-950 text-indigo-300 border border-indigo-800 text-[11px] font-black whitespace-nowrap">
+              Fáze {currentPhase}/5: {
+                currentPhase === 1 ? 'Nástroje' :
+                currentPhase === 2 ? 'Zapojení XR18' :
+                currentPhase === 3 ? '230V' :
+                currentPhase === 4 ? 'PA & Odposlechy' :
+                'Faktura'
+              }
+            </span>
+
             <button
-              type="button"
-              onClick={() => handleSetScale('sm')}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
-                itemScale === 'sm'
-                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Mini kompaktní velikost pro přehlednost na mobilu"
+              onClick={() => onSelectPhase?.(Math.min(5, currentPhase + 1) as StagePhase)}
+              disabled={currentPhase === 5}
+              className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:pointer-events-none text-white rounded-lg text-xs font-bold flex items-center gap-0.5 transition shadow"
+              title="Další krok"
             >
-              Mini
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* Phase-specific Add and Action Buttons */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0 px-1 py-0.5">
+            {currentPhase === 1 && (
+              <>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('drums', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🥁 Bicí
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('guitar_amp', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎸 Kombo
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('bass_amp', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎸 Basa
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('keyboard', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎹 Klávesy
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('acoustic_guitar', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎸 Akustika
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('lead_vox', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎙️ Lead
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('backing_vox', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎙️ Backing
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('generic', items))}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-650 rounded-lg text-[10px] font-bold text-indigo-300 whitespace-nowrap transition active:scale-95"
+                >
+                  + Vlastní
+                </button>
+              </>
+            )}
+
+            {currentPhase === 2 && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800 font-bold whitespace-nowrap">
+                  Zapojeno: {patchedCount}/16
+                </span>
+                <button
+                  onClick={onAutoPatchAll}
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Auto-zapojení</span>
+                </button>
+              </div>
+            )}
+
+            {currentPhase === 3 && (
+              <button
+                onClick={() => onAddItem?.(getPresetInstrument('power_strip', items))}
+                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ Prodlužka 230V</span>
+              </button>
+            )}
+
+            {currentPhase === 4 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    onAddItem?.({
+                      name: 'Main PA Levý',
+                      category: 'pa_speaker',
+                      subType: 'pa_speaker',
+                      speakerType: 'active',
+                      needsPower230V: true,
+                      x: 10,
+                      y: 85,
+                      assignedOutputPort: 'Main L',
+                    });
+                    onAddItem?.({
+                      name: 'Main PA Pravý',
+                      category: 'pa_speaker',
+                      subType: 'pa_speaker',
+                      speakerType: 'active',
+                      needsPower230V: true,
+                      x: 90,
+                      y: 85,
+                      assignedOutputPort: 'Main R',
+                    });
+                  }}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-700/60 rounded-lg text-[10px] font-semibold whitespace-nowrap transition active:scale-95"
+                >
+                  + Main PA L/R
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('wedge', items))}
+                  className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold whitespace-nowrap transition active:scale-95"
+                >
+                  + Wedge
+                </button>
+              </div>
+            )}
+
+            {currentPhase === 5 && (
+              <button
+                onClick={toggleFullscreenStage}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow whitespace-nowrap transition"
+              >
+                <span>📄 Otevřít fakturu &amp; PDF</span>
+              </button>
+            )}
+          </div>
+
+          {/* Scale & Exit Fullscreen Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 bg-slate-950 border border-slate-800 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => handleSetScale('sm')}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                  itemScale === 'sm' ? 'bg-indigo-600 text-white' : 'text-slate-400'
+                }`}
+              >
+                Mini
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetScale('md')}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                  itemScale === 'md' ? 'bg-indigo-600 text-white' : 'text-slate-400'
+                }`}
+              >
+                Stř
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetScale('lg')}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                  itemScale === 'lg' ? 'bg-indigo-600 text-white' : 'text-slate-400'
+                }`}
+              >
+                Vel
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => handleSetScale('md')}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
-                itemScale === 'md'
-                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Střední velikost"
+              onClick={toggleFullscreenStage}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-300 flex items-center gap-1 transition"
+              title="Zmenšit zobrazení"
             >
-              Střední
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetScale('lg')}
-              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
-                itemScale === 'lg'
-                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title="Velké ikony"
-            >
-              Velká
+              <Minimize2 className="w-3 h-3 text-indigo-400" />
+              <span className="hidden sm:inline">Zmenšit</span>
             </button>
           </div>
         </div>
+      ) : (
+        /* STANDARD (NON-FULLSCREEN) TOOLBAR */
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+              <span>Stage Plán:</span>
+            </span>
 
-        <button
-          type="button"
-          onClick={toggleFullscreenStage}
-          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
-          title="Přepnout zobrazení celé obrazovky na šířku"
-        >
-          {isFullscreenStage ? (
-            <>
-              <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Zmenšit</span>
-            </>
-          ) : (
-            <>
-              <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>📱 Na celou obrazovku</span>
-            </>
-          )}
-        </button>
-      </div>
+            {/* Component size switcher */}
+            <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-700/80 p-0.5 rounded-xl shadow-inner">
+              <span className="text-[9px] text-slate-400 pl-1.5 pr-0.5 font-semibold">Prvky:</span>
+              <button
+                type="button"
+                onClick={() => handleSetScale('sm')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  itemScale === 'sm'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Mini kompaktní velikost pro přehlednost na mobilu"
+              >
+                Mini
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetScale('md')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  itemScale === 'md'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Střední velikost"
+              >
+                Střední
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetScale('lg')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  itemScale === 'lg'
+                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Velké ikony"
+              >
+                Velká
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleFullscreenStage}
+            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
+            title="Přepnout zobrazení celé obrazovky na šířku"
+          >
+            <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>📱 Na celou obrazovku</span>
+          </button>
+        </div>
+      )}
 
       {/* 2D Stage Canvas Container */}
       <div
@@ -486,6 +708,42 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           </div>
         )}
       </div>
+
+      {/* Fullscreen Bottom Stepper Footer */}
+      {isFullscreenStage && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 flex items-center justify-between text-xs shrink-0 shadow-lg gap-2">
+          <button
+            onClick={() => onSelectPhase?.(Math.max(1, currentPhase - 1) as StagePhase)}
+            disabled={currentPhase === 1}
+            className="text-[11px] text-slate-300 hover:text-white disabled:opacity-20 flex items-center gap-1 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700 disabled:pointer-events-none"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Předchozí krok</span>
+          </button>
+
+          <span className="text-[10px] text-slate-400 text-center truncate">
+            {currentPhase === 1 && '💡 Klepnutím na nástroj upravíte mikrofony a linky'}
+            {currentPhase === 2 && '💡 Klepnutím na nástroj zvolíte vstup XR18 a phantom +48V'}
+            {currentPhase === 3 && '💡 Klepnutím propojíte spotřebič se zásuvkou 230V'}
+            {currentPhase === 4 && '💡 Klepnutím na bednu nastavíte Main L/R nebo Aux 1–6'}
+            {currentPhase === 5 && '✅ Vše připraveno pro tisk faktury a stažení PDF'}
+          </span>
+
+          <button
+            onClick={() => {
+              if (currentPhase < 5) {
+                onSelectPhase?.((currentPhase + 1) as StagePhase);
+              } else {
+                toggleFullscreenStage();
+              }
+            }}
+            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow shrink-0"
+          >
+            <span>{currentPhase < 5 ? 'Další krok' : 'Zobrazit fakturu'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Modals */}
       {modalMode === 'configure' && selectedItem && (

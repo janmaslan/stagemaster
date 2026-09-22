@@ -213,6 +213,9 @@ export function App() {
           onSelectItem={setSelectedItemId}
           onUpdateItems={handleUpdateItems}
           onUpdateCables={handleUpdateCables}
+          onSelectPhase={setCurrentPhase}
+          onAddItem={handleAddItem}
+          onAutoPatchAll={handleAutoPatchAll}
         />
       </main>
 

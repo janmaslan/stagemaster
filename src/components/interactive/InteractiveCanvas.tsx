@@ -38,6 +38,23 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   // Fullscreen / Landscape stage mode
   const [isFullscreenStage, setIsFullscreenStage] = useState<boolean>(false);
 
+  // Component scale mode (sm = Mini for mobile, md = Medium, lg = Large)
+  const [itemScale, setItemScale] = useState<'sm' | 'md' | 'lg'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('stagemaster_scale');
+      if (saved === 'sm' || saved === 'md' || saved === 'lg') return saved;
+      if (window.innerWidth < 768) return 'sm'; // Default to Mini on mobile!
+    }
+    return 'md';
+  });
+
+  const handleSetScale = (newScale: 'sm' | 'md' | 'lg') => {
+    setItemScale(newScale);
+    try {
+      localStorage.setItem('stagemaster_scale', newScale);
+    } catch {}
+  };
+
   const toggleFullscreenStage = () => {
     if (!isFullscreenStage) {
       setIsFullscreenStage(true);
@@ -112,8 +129,8 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       const deltaXPercent = (dx / rect.width) * 100;
       const deltaYPercent = (dy / rect.height) * 100;
 
-      const newX = Math.round(Math.max(6, Math.min(94, itemStartCoords.current.x + deltaXPercent)));
-      const newY = Math.round(Math.max(8, Math.min(92, itemStartCoords.current.y + deltaYPercent)));
+      const newX = Math.round(Math.max(4, Math.min(96, itemStartCoords.current.x + deltaXPercent)));
+      const newY = Math.round(Math.max(5, Math.min(93, itemStartCoords.current.y + deltaYPercent)));
 
       onUpdateItems(
         items.map((it) => (it.id === id ? { ...it, x: newX, y: newY } : it))
@@ -332,23 +349,59 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           : 'relative w-full flex flex-col gap-2'
       }
     >
-      {/* Stage Toolbar with Fullscreen / Landscape toggle */}
-      <div className="flex items-center justify-between text-xs px-1">
+      {/* Stage Toolbar with Scale and Fullscreen controls */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-            <span>Rozestavení na scéně (Stage Plán)</span>
+            <span>Stage Plán:</span>
           </span>
-          {isFullscreenStage && (
-            <span className="text-[10px] text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-800">
-              💡 Pro maximální plochu otočte mobil na šířku
-            </span>
-          )}
+
+          {/* Component size switcher */}
+          <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-700/80 p-0.5 rounded-xl shadow-inner">
+            <span className="text-[9px] text-slate-400 pl-1.5 pr-0.5 font-semibold">Prvky:</span>
+            <button
+              type="button"
+              onClick={() => handleSetScale('sm')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                itemScale === 'sm'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Mini kompaktní velikost pro přehlednost na mobilu"
+            >
+              Mini
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetScale('md')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                itemScale === 'md'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Střední velikost"
+            >
+              Střední
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetScale('lg')}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                itemScale === 'lg'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Velké ikony"
+            >
+              Velká
+            </button>
+          </div>
         </div>
 
         <button
           type="button"
           onClick={toggleFullscreenStage}
-          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95"
+          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
           title="Přepnout zobrazení celé obrazovky na šířku"
         >
           {isFullscreenStage ? (
@@ -359,7 +412,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           ) : (
             <>
               <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>📱 Na celou obrazovku / Na šířku</span>
+              <span>📱 Na celou obrazovku</span>
             </>
           )}
         </button>
@@ -371,8 +424,8 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
         onClick={() => onSelectItem(null)}
         className={`relative w-full bg-slate-950 border-2 border-slate-800 rounded-3xl overflow-hidden shadow-2xl select-none transition-all ${
           isFullscreenStage
-            ? 'flex-1 h-full min-h-[300px]'
-            : 'aspect-[4/3] sm:aspect-[16/10]'
+            ? 'flex-1 h-full min-h-[320px]'
+            : 'min-h-[390px] sm:min-h-[460px] aspect-[4/3] sm:aspect-[16/10]'
         }`}
         style={{
           backgroundImage: 'radial-gradient(circle, #334155 1px, transparent 1px)',
@@ -380,23 +433,23 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
         }}
       >
         {/* Top: Backstage Boundary */}
-        <div className="absolute top-0 inset-x-0 bg-slate-950/90 border-b border-slate-800 py-1 px-4 flex items-center justify-between text-[10px] font-black tracking-widest text-slate-400 uppercase z-20 pointer-events-none">
-          <span>◄ BACKSTAGE (ZÁZEMÍ PÓDIA)</span>
+        <div className="absolute top-0 inset-x-0 bg-slate-950/90 border-b border-slate-800 py-0.5 sm:py-1 px-3 sm:px-4 flex items-center justify-between text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 uppercase z-20 pointer-events-none">
+          <span>◄ BACKSTAGE</span>
           <span className="text-slate-400 font-mono">PÓDIUM</span>
           <span>BACKSTAGE ►</span>
         </div>
 
         {/* Bottom: Front Stage & Audience FOH Boundary */}
-        <div className="absolute bottom-0 inset-x-0 bg-indigo-950/90 border-t border-indigo-700/80 py-1.5 px-4 flex items-center justify-center text-[11px] font-black tracking-widest text-indigo-300 uppercase z-20 pointer-events-none shadow-lg">
-          <span>▼ PŘEDEK PÓDIA — PUBLIKUM &amp; ZVUKAŘ (FOH) ▼</span>
+        <div className="absolute bottom-0 inset-x-0 bg-indigo-950/90 border-t border-indigo-700/80 py-1 sm:py-1.5 px-3 sm:px-4 flex items-center justify-center text-[9px] sm:text-[11px] font-black tracking-widest text-indigo-300 uppercase z-20 pointer-events-none shadow-lg">
+          <span>▼ PŘEDEK PÓDIA — PUBLIKUM &amp; FOH ▼</span>
         </div>
 
-        {/* Stage Left / Right Side Markers */}
-        <div className="absolute top-1/2 left-1.5 -translate-y-1/2 text-[9px] font-bold text-slate-400 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 z-0 pointer-events-none">
-          STAGE RIGHT (Z POHLEDU MUZIKANTA)
+        {/* Stage Left / Right Side Markers (hidden on mobile to free up space) */}
+        <div className="hidden sm:block absolute top-1/2 left-1.5 -translate-y-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-widest [writing-mode:vertical-lr] rotate-180 z-0 pointer-events-none">
+          STAGE RIGHT
         </div>
-        <div className="absolute top-1/2 right-1.5 -translate-y-1/2 text-[9px] font-bold text-slate-400 uppercase tracking-widest [writing-mode:vertical-lr] z-0 pointer-events-none">
-          STAGE LEFT (Z POHLEDU MUZIKANTA)
+        <div className="hidden sm:block absolute top-1/2 right-1.5 -translate-y-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-widest [writing-mode:vertical-lr] z-0 pointer-events-none">
+          STAGE LEFT
         </div>
 
         {/* Cables Layer */}
@@ -414,6 +467,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             isSelected={selectedItemId === item.id}
             onSelect={() => onSelectItem(item.id)}
             onPointerDown={(e) => handlePointerDown(item.id, e)}
+            scale={itemScale}
           />
         ))}
 

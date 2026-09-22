@@ -21,7 +21,8 @@ import {
   Cable,
   Zap,
   Volume2,
-  CheckSquare
+  CheckSquare,
+  FolderOpen
 } from 'lucide-react';
 import { getPresetInstrument } from '../../utils/stagePresets';
 
@@ -36,6 +37,7 @@ interface InteractiveCanvasProps {
   onSelectPhase?: (phase: StagePhase) => void;
   onAddItem?: (item: Partial<InteractiveStageItem>) => void;
   onAutoPatchAll?: () => void;
+  onOpenProjectManager?: () => void;
 }
 
 export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
@@ -49,6 +51,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   onSelectPhase,
   onAddItem,
   onAutoPatchAll,
+  onOpenProjectManager,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -567,6 +570,18 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               </button>
             </div>
 
+            {onOpenProjectManager && (
+              <button
+                type="button"
+                onClick={onOpenProjectManager}
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 flex items-center gap-1 transition active:scale-95"
+                title="Správa stage plánů"
+              >
+                <FolderOpen className="w-3 h-3 text-indigo-400" />
+                <span className="hidden sm:inline">Plány</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={toggleFullscreenStage}
@@ -628,15 +643,30 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={toggleFullscreenStage}
-            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
-            title="Přepnout zobrazení celé obrazovky na šířku"
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>📱 Na celou obrazovku</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenProjectManager && (
+              <button
+                type="button"
+                onClick={onOpenProjectManager}
+                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-slate-200 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
+                title="Otevřít správce stage plánů"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">Moje plány</span>
+                <span className="sm:hidden">Plány</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={toggleFullscreenStage}
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
+              title="Přepnout zobrazení celé obrazovky na šířku"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>📱 Na celou obrazovku</span>
+            </button>
+          </div>
         </div>
       )}
 

@@ -6,23 +6,31 @@ import {
   StagePhase 
 } from './types/interactiveStage';
 import { 
-  loadStageProject, 
+  loadActiveStageProject, 
+  getAllSavedProjects, 
   saveStageProject, 
   EMPTY_STAGE_PROJECT, 
   INITIAL_XR18_ITEM 
 } from './utils/stageProjectStorage';
 import { InteractiveCanvas } from './components/interactive/InteractiveCanvas';
 import { PhaseControls } from './components/interactive/PhaseControls';
-import { RotateCcw } from 'lucide-react';
+import { ProjectManagerModal } from './components/interactive/ProjectManagerModal';
+import { RotateCcw, FolderOpen } from 'lucide-react';
 
 export function App() {
-  const [project, setProject] = useState<StageProject>(() => loadStageProject());
+  const [savedProjects, setSavedProjects] = useState<StageProject[]>(() => getAllSavedProjects());
+  const [project, setProject] = useState<StageProject>(() => {
+    const { active } = loadActiveStageProject();
+    return active;
+  });
   const [currentPhase, setCurrentPhase] = useState<StagePhase>(1);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
 
-  // Auto-save changes to localStorage
+  // Auto-save changes to localStorage and update project list
   useEffect(() => {
-    saveStageProject(project);
+    const updatedList = saveStageProject(project);
+    setSavedProjects(updatedList);
   }, [project]);
 
   const handleUpdateItems = (items: InteractiveStageItem[]) => {
@@ -175,15 +183,30 @@ export function App() {
             </div>
           </div>
 
-          {/* Reset button */}
-          <button
-            onClick={handleResetProject}
-            className="text-xs text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl border border-slate-700 flex items-center gap-1 transition shrink-0"
-            title="Vyčistit pódium a začít od nuly"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Vyčistit pódium</span>
-          </button>
+          {/* Action buttons: Plans & Reset */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => setIsProjectManagerOpen(true)}
+              className="text-xs text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-1.5 transition font-bold shadow-md shadow-indigo-600/30"
+              title="Otevřít správce stage plánů"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Moje plány</span>
+              <span className="bg-indigo-900/90 text-indigo-200 text-[10px] px-1.5 py-0.2 rounded-full font-black border border-indigo-700/60">
+                {savedProjects.length}
+              </span>
+            </button>
+
+            {/* Reset button */}
+            <button
+              onClick={handleResetProject}
+              className="text-xs text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl border border-slate-700 flex items-center gap-1 transition shrink-0"
+              title="Vyčistit aktuální pódium"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Vyčistit</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -216,8 +239,25 @@ export function App() {
           onSelectPhase={setCurrentPhase}
           onAddItem={handleAddItem}
           onAutoPatchAll={handleAutoPatchAll}
+          onOpenProjectManager={() => setIsProjectManagerOpen(true)}
         />
       </main>
+
+      {/* Project Manager Modal */}
+      <ProjectManagerModal
+        isOpen={isProjectManagerOpen}
+        onClose={() => setIsProjectManagerOpen(false)}
+        activeProject={project}
+        savedProjects={savedProjects}
+        onSelectProject={(newProj) => {
+          setProject(newProj);
+          setSelectedItemId(null);
+          setCurrentPhase(1);
+        }}
+        onUpdateProjectsList={(newList) => {
+          setSavedProjects(newList);
+        }}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-2.5 text-center text-[10px] text-slate-500">

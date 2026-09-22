@@ -423,10 +423,16 @@ export function exportInvoiceAndRiderPdf({
     ctx2.font = 'bold 20px sans-serif';
     ctx2.fillText(outItem.name, 260, curOutY + 32);
 
-    ctx2.fillStyle = outItem.speakerType === 'passive' ? '#c2410c' : '#0284c7';
+    const isSpeakon = outItem.speakerType === 'passive_speakon' || outItem.speakerType === 'passive';
+    const isJack = outItem.speakerType === 'passive_jack';
+    ctx2.fillStyle = isSpeakon ? '#c2410c' : isJack ? '#a16207' : '#0284c7';
     ctx2.font = 'bold 19px sans-serif';
     ctx2.fillText(
-      outItem.speakerType === 'passive' ? '🔊 Pasivní bedna (Kabel Speakon)' : '⚡ Aktivní bedna (XLR signál + 230V)',
+      isSpeakon
+        ? '🔊 Pasivní bedna (Kabel Speakon)'
+        : isJack
+        ? '🔌 Pasivní bedna (Kabel Jack 6.3mm)'
+        : '⚡ Aktivní bedna (XLR signál + 230V)',
       620,
       curOutY + 32
     );

@@ -317,7 +317,11 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   };
 
   // Handle PA / Monitor Output patch confirmation
-  const handleConfirmOutputPatch = (port: string, performer: string, speakerType: 'active' | 'passive') => {
+  const handleConfirmOutputPatch = (
+    port: string, 
+    performer: string, 
+    speakerType: 'active' | 'passive_speakon' | 'passive_jack'
+  ) => {
     if (!selectedItem || !xr18Item) return;
 
     onUpdateItems(
@@ -338,11 +342,18 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       (c) => !(c.fromId === xr18Item.id && c.toId === selectedItem.id)
     );
 
+    const cableType: 'speakon' | 'jack' | 'xlr' =
+      speakerType === 'passive_speakon'
+        ? 'speakon'
+        : speakerType === 'passive_jack'
+        ? 'jack'
+        : 'xlr';
+
     const newCable: StageCable = {
       id: 'outcable-' + Date.now(),
       fromId: xr18Item.id,
       toId: selectedItem.id,
-      type: speakerType === 'passive' ? 'speakon' : 'xlr',
+      type: cableType,
       lengthMeters: 10,
       label: port,
     };
@@ -378,7 +389,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     >
       {/* FULLSCREEN HEADER & ACTION CONTROLS */}
       {isFullscreenStage ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-1.5 flex flex-wrap items-center justify-between gap-1.5 shadow-xl shrink-0">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl px-2 py-1 flex flex-nowrap items-center justify-between gap-1.5 shadow-xl shrink-0 h-10 sm:h-11 overflow-hidden">
           {/* Phase Stepper Pills */}
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -741,11 +752,13 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
       {/* Fullscreen Bottom Stepper Footer */}
       {isFullscreenStage && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 flex items-center justify-between text-xs shrink-0 shadow-lg gap-2">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 flex items-center justify-between text-xs shrink-0 shadow-lg gap-2 h-9">
           <button
             onClick={() => onSelectPhase?.(Math.max(1, currentPhase - 1) as StagePhase)}
             disabled={currentPhase === 1}
-            className="text-[11px] text-slate-300 hover:text-white disabled:opacity-20 flex items-center gap-1 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700 disabled:pointer-events-none"
+            className={`text-[11px] text-slate-300 hover:text-white flex items-center gap-1 font-bold px-2 py-1 rounded bg-slate-800 border border-slate-700 transition ${
+              currentPhase === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Předchozí krok</span>
@@ -767,7 +780,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 toggleFullscreenStage();
               }
             }}
-            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow shrink-0"
+            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 transition shadow shrink-0 active:scale-95"
           >
             <span>{currentPhase < 5 ? 'Další krok' : 'Zobrazit fakturu'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -805,6 +818,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       {modalMode === 'patch_output' && selectedItem && (
         <OutputPatchModal
           item={selectedItem}
+          allItems={items}
           onConfirmOutputPatch={handleConfirmOutputPatch}
           onUnpatch={handleUnpatchOutput}
           onClose={() => setModalMode(null)}

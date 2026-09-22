@@ -36,8 +36,8 @@ export interface InteractiveStageItem {
   needsPower230V?: boolean;
   powerConnectedToId?: string; // id of power_strip
 
-  // PA & Monitor properties
-  speakerType?: 'active' | 'passive'; // Active (XLR + 230V) vs Passive (Speakon from amp)
+  // PA & Monitor properties: Active (XLR + 230V) vs Passive Speakon vs Passive Jack 6.3mm
+  speakerType?: 'active' | 'passive_speakon' | 'passive_jack' | 'passive';
   assignedOutputPort?: string; // e.g. "Main L", "Main R", "Aux 1", "Aux 2"
   targetPerformer?: string;
 

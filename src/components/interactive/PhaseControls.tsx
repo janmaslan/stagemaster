@@ -391,10 +391,17 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   const paSpeakers = items.filter((i) => i.subType === 'pa_speaker');
   const monitorWedges = items.filter((i) => ['wedge', 'monitor_wedge'].includes(i.subType));
 
-  const activePaCount = paSpeakers.filter((s) => s.speakerType !== 'passive').length;
-  const passivePaCount = paSpeakers.filter((s) => s.speakerType === 'passive').length;
-  const activeWedgeCount = monitorWedges.filter((s) => s.speakerType !== 'passive').length;
-  const passiveWedgeCount = monitorWedges.filter((s) => s.speakerType === 'passive').length;
+  const isPassiveSpeakon = (s: InteractiveStageItem) => s.speakerType === 'passive_speakon' || s.speakerType === 'passive';
+  const isPassiveJack = (s: InteractiveStageItem) => s.speakerType === 'passive_jack';
+  const isActive = (s: InteractiveStageItem) => s.speakerType === 'active' || (!s.speakerType && s.needsPower230V);
+
+  const activePaCount = paSpeakers.filter(isActive).length;
+  const passiveSpeakonPaCount = paSpeakers.filter(isPassiveSpeakon).length;
+  const passiveJackPaCount = paSpeakers.filter(isPassiveJack).length;
+
+  const activeWedgeCount = monitorWedges.filter(isActive).length;
+  const passiveSpeakonWedgeCount = monitorWedges.filter(isPassiveSpeakon).length;
+  const passiveJackWedgeCount = monitorWedges.filter(isPassiveJack).length;
 
   // Accurate Cables Count:
   // XLR: mic channels + direct XLR line channels + active PA + active wedges
@@ -403,13 +410,14 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   ).length;
   const totalXlrRequired = totalInstrumentXlr + activePaCount + activeWedgeCount;
 
-  // Speakon: passive PA + passive wedges
-  const totalSpeakonRequired = passivePaCount + passiveWedgeCount;
+  // Speakon: passive PA + passive wedges with speakon
+  const totalSpeakonRequired = passiveSpeakonPaCount + passiveSpeakonWedgeCount;
 
-  // Jack 6.3mm: line channels
-  const totalJackRequired = allInstrumentChannels.filter(
+  // Jack 6.3mm: instrument line channels + passive PA/wedges with jack
+  const totalInstrumentJack = allInstrumentChannels.filter(
     (c) => c.channel.pickupType === 'line_jack' || c.channel.pickupType === 'line'
   ).length;
+  const totalJackRequired = totalInstrumentJack + passiveJackPaCount + passiveJackWedgeCount;
 
   // 230V power strips and power cords
   const totalPowerStrips = items.filter((i) => i.subType === 'power_strip').length;
@@ -532,7 +540,12 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
     items
       .filter((i) => i.assignedOutputPort)
       .forEach((it) => {
-        const typeStr = it.speakerType === 'passive' ? 'Pasivní (Speakon)' : 'Aktivní (XLR+230V)';
+        const typeStr =
+          it.speakerType === 'passive_speakon' || it.speakerType === 'passive'
+            ? 'Pasivní (Speakon ze zesilovače)'
+            : it.speakerType === 'passive_jack'
+            ? 'Pasivní (Jack 6.3mm ze zesilovače)'
+            : 'Aktivní (XLR + 230V)';
         t += `${it.assignedOutputPort}: ${it.name} [${typeStr}] - ${it.targetPerformer || ''}\n`;
       });
 
@@ -741,7 +754,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-end">
               <button
                 onClick={() => setIsEditingInvoiceDetails(!isEditingInvoiceDetails)}
                 className={`px-3 py-2 border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
@@ -750,30 +763,32 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                     : 'bg-slate-800 hover:bg-slate-750 text-amber-300 border-amber-700/60'
                 }`}
               >
-                <Edit2 className="w-4 h-4" />
-                <span>{isEditingInvoiceDetails ? 'Zavřít editaci faktury' : 'Upravit fakturu'}</span>
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>{isEditingInvoiceDetails ? 'Zavřít fakturu' : 'Upravit fakturu'}</span>
               </button>
 
               <button
                 onClick={handleCopyTextRider}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                className="px-2.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                title="Zkopírovat rider jako text do schránky"
               >
-                {copiedRider ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-indigo-400" />}
-                <span>{copiedRider ? 'Zkopírováno!' : 'Kopírovat text'}</span>
+                {copiedRider ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-indigo-400" />}
+                <span className="hidden sm:inline">{copiedRider ? 'Zkopírováno!' : 'Kopírovat'}</span>
               </button>
 
               <button
                 onClick={() => window.print()}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                className="px-2.5 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                title="Tisk"
               >
-                <Printer className="w-4 h-4 text-indigo-400" />
-                <span>Tisk</span>
+                <Printer className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">Tisk</span>
               </button>
 
               <button
                 onClick={handleExportPdf}
                 disabled={isExporting}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 transition"
+                className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition shrink-0 active:scale-95"
               >
                 <Download className="w-4 h-4" />
                 <span>{isExporting ? 'Generuji...' : 'Stáhnout PDF'}</span>
@@ -798,7 +813,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
               </div>
 
               {/* Basic metadata */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
                 <div>
                   <label className="text-slate-400 block mb-1">Číslo faktury / dokladu:</label>
                   <input
@@ -815,6 +830,24 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                     value={curInvoice.variableSymbol || curInvoice.invoiceNumber}
                     onChange={(e) => handleUpdateInvoiceField('variableSymbol', e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-amber-400 font-bold block mb-1">Datum plnění (DUZP / akce):</label>
+                  <input
+                    type="date"
+                    value={curInvoice.eventDate || curInvoice.issueDate}
+                    onChange={(e) => handleUpdateInvoiceField('eventDate', e.target.value)}
+                    className="w-full bg-slate-800 border border-amber-500/70 rounded-xl px-2.5 py-1.5 text-white font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Datum vystavení:</label>
+                  <input
+                    type="date"
+                    value={curInvoice.issueDate}
+                    onChange={(e) => handleUpdateInvoiceField('issueDate', e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white"
                   />
                 </div>
                 <div>
@@ -1185,7 +1218,11 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                             {it.assignedOutputPort}
                           </span>
                           <span className="text-[10px] font-semibold text-slate-500">
-                            {it.speakerType === 'passive' ? 'Pasivní (Speakon)' : 'Aktivní (XLR)'}
+                            {(it.speakerType === 'passive_speakon' || it.speakerType === 'passive')
+                              ? 'Pasivní (Speakon)'
+                              : it.speakerType === 'passive_jack'
+                              ? 'Pasivní (Jack 6.3mm)'
+                              : 'Aktivní (XLR)'}
                           </span>
                         </div>
                         <div className="font-bold text-slate-900">{it.name}</div>

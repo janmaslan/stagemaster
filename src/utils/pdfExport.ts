@@ -1,7 +1,8 @@
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { InvoiceData, InteractiveStageItem, InstrumentChannel } from '../types/interactiveStage';
 
-interface ExportPdfParams {
+export interface ExportPdfParams {
   bandName: string;
   invoice: InvoiceData;
   items: InteractiveStageItem[];
@@ -18,297 +19,87 @@ interface ExportPdfParams {
   standCounts: Record<string, number>;
 }
 
-export function exportInvoiceAndRiderPdf({
-  bandName,
-  invoice,
-  items,
-  allInstrumentChannels,
-  totalXlrRequired,
-  totalSpeakonRequired,
-  totalJackRequired,
-  totalPowerStrips,
-  totalPoweredDevices,
-  totalDiBoxes = 0,
-  totalPowerSources = 0,
-  totalIemStations = 0,
-  micCounts,
-  standCounts,
-}: ExportPdfParams): void {
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const A4_W = 1600;
-  const A4_H = 2262;
+const A4_W = 1600;
+const A4_H = 2262;
 
-  // -------------------------------------------------------------
-  // PAGE 1: FAKTURA / DAŇOVÝ DOKLAD
-  // -------------------------------------------------------------
-  const canvas1 = document.createElement('canvas');
-  canvas1.width = A4_W;
-  canvas1.height = A4_H;
-  const ctx1 = canvas1.getContext('2d');
-  if (!ctx1) return;
-
-  // Background
-  ctx1.fillStyle = '#ffffff';
-  ctx1.fillRect(0, 0, A4_W, A4_H);
-
-  // Top accent bar
-  ctx1.fillStyle = '#4338ca';
-  ctx1.fillRect(0, 0, A4_W, 24);
-
-  // Document Title
-  ctx1.fillStyle = '#4338ca';
-  ctx1.font = 'bold 22px sans-serif';
-  ctx1.fillText('FAKTURA — DAŇOVÝ DOKLAD & VYÚČTOVÁNÍ ZA OZVUČENÍ', 80, 80);
-
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 54px sans-serif';
-  ctx1.fillText(`Faktura č. ${invoice.invoiceNumber}`, 80, 145);
-
-  ctx1.fillStyle = '#64748b';
-  ctx1.font = 'bold 24px sans-serif';
-  ctx1.fillText(`Variabilní symbol: ${invoice.variableSymbol || invoice.invoiceNumber}`, 80, 185);
-
-  // Dates Box on right
-  const dateBoxX = 1000;
-  const dateBoxY = 60;
-  ctx1.fillStyle = '#f8fafc';
-  ctx1.strokeStyle = '#e2e8f0';
-  ctx1.lineWidth = 2;
-  roundRect(ctx1, dateBoxX, dateBoxY, 520, 140, 16, true, true);
-
-  ctx1.fillStyle = '#475569';
-  ctx1.font = '22px sans-serif';
-  ctx1.fillText('Datum vystavení:', dateBoxX + 25, dateBoxY + 40);
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 22px sans-serif';
-  ctx1.fillText(new Date(invoice.issueDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 40);
-
-  ctx1.fillStyle = '#475569';
-  ctx1.font = '22px sans-serif';
-  ctx1.fillText('Datum zdan. plnění:', dateBoxX + 25, dateBoxY + 80);
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 22px sans-serif';
-  ctx1.fillText(new Date(invoice.eventDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 80);
-
-  ctx1.fillStyle = '#4338ca';
-  ctx1.font = 'bold 22px sans-serif';
-  ctx1.fillText('Datum splatnosti:', dateBoxX + 25, dateBoxY + 120);
-  ctx1.fillText(new Date(invoice.dueDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 120);
-
-  // Divider
-  ctx1.strokeStyle = '#cbd5e1';
-  ctx1.lineWidth = 2;
-  ctx1.beginPath();
-  ctx1.moveTo(80, 220);
-  ctx1.lineTo(A4_W - 80, 220);
-  ctx1.stroke();
-
-  // Supplier & Client Boxes
-  const boxY = 245;
-  const boxW = 690;
-  const boxH = 340;
-
-  // 1. Supplier Box
-  ctx1.fillStyle = '#f8fafc';
-  ctx1.strokeStyle = '#cbd5e1';
-  ctx1.lineWidth = 2;
-  roundRect(ctx1, 80, boxY, boxW, boxH, 20, true, true);
-
-  ctx1.fillStyle = '#4338ca';
-  ctx1.font = 'bold 20px sans-serif';
-  ctx1.fillText('DODAVATEL (Zvukař / Technika):', 110, boxY + 40);
-
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 28px sans-serif';
-  ctx1.fillText(invoice.supplierName || 'Jan Novák - Zvukař', 110, boxY + 85);
-
-  ctx1.fillStyle = '#334155';
-  ctx1.font = '22px sans-serif';
-  ctx1.fillText(invoice.supplierAddress || 'Praha', 110, boxY + 125);
-  ctx1.fillText(`IČO: ${invoice.supplierIco || '12345678'} ${invoice.supplierDic ? `  |  DIČ: ${invoice.supplierDic}` : ''}`, 110, boxY + 165);
-  ctx1.fillText(`Tel: ${invoice.supplierPhone || ''}  |  E-mail: ${invoice.supplierEmail || ''}`, 110, boxY + 205);
-
-  // Bank Account Highlight inside Supplier Box
-  ctx1.fillStyle = '#eef2ff';
-  ctx1.strokeStyle = '#c7d2fe';
-  ctx1.lineWidth = 1.5;
-  roundRect(ctx1, 105, boxY + 235, boxW - 50, 80, 12, true, true);
-
-  ctx1.fillStyle = '#4338ca';
-  ctx1.font = 'bold 18px sans-serif';
-  ctx1.fillText('BANKOVNÍ ÚČET PRO ÚHRADU:', 125, boxY + 265);
-  ctx1.fillStyle = '#1e1b4b';
-  ctx1.font = 'bold 26px monospace';
-  ctx1.fillText(invoice.supplierAccount || '1234567890/0300', 125, boxY + 298);
-
-  // 2. Client Box
-  ctx1.fillStyle = '#f8fafc';
-  ctx1.strokeStyle = '#cbd5e1';
-  ctx1.lineWidth = 2;
-  roundRect(ctx1, 830, boxY, boxW, boxH, 20, true, true);
-
-  ctx1.fillStyle = '#c2410c';
-  ctx1.font = 'bold 20px sans-serif';
-  ctx1.fillText('ODBĚRATEL (Objednatel / Pořadatel / Kapela):', 860, boxY + 40);
-
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 28px sans-serif';
-  ctx1.fillText(invoice.clientName || bandName || 'Pořadatel akce', 860, boxY + 85);
-
-  ctx1.fillStyle = '#334155';
-  ctx1.font = '22px sans-serif';
-  ctx1.fillText(invoice.clientAddress || 'Místo konání akce', 860, boxY + 125);
-  if (invoice.clientIco) {
-    ctx1.fillText(`IČO: ${invoice.clientIco}`, 860, boxY + 165);
+/**
+ * Capture 2D Stage Canvas layout and download as high-res 2x PNG image
+ */
+export async function exportStageCanvasImage(
+  target?: HTMLElement | string | null,
+  bandName = 'Kapela'
+): Promise<void> {
+  let element: HTMLElement | null = null;
+  if (!target || typeof target === 'string') {
+    const id = typeof target === 'string' ? target : 'stage-canvas-capture';
+    element = document.getElementById(id);
+  } else {
+    element = target;
   }
 
-  // Purpose Highlight inside Client Box
-  ctx1.fillStyle = '#fff7ed';
-  ctx1.strokeStyle = '#fed7aa';
-  ctx1.lineWidth = 1.5;
-  roundRect(ctx1, 855, boxY + 235, boxW - 50, 80, 12, true, true);
+  if (!element) {
+    throw new Error('Stage canvas element not found');
+  }
 
-  ctx1.fillStyle = '#c2410c';
-  ctx1.font = 'bold 18px sans-serif';
-  ctx1.fillText('ÚČEL PLATBY / NÁZEV PROJEKTU:', 875, boxY + 265);
-  ctx1.fillStyle = '#431407';
-  ctx1.font = 'bold 24px sans-serif';
-  ctx1.fillText(`${bandName} • Ozvučení akce`, 875, boxY + 298);
-
-  // Items Table Header
-  const tableY = 630;
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 24px sans-serif';
-  ctx1.fillText('POLOŽKY VYÚČTOVÁNÍ:', 80, tableY);
-
-  const thY = tableY + 20;
-  ctx1.fillStyle = '#1e293b';
-  ctx1.fillRect(80, thY, A4_W - 160, 50);
-
-  ctx1.fillStyle = '#ffffff';
-  ctx1.font = 'bold 20px sans-serif';
-  ctx1.fillText('POPIS SLUŽBY / POLOŽKA', 105, thY + 33);
-  ctx1.fillText('MNOŽSTVÍ', 950, thY + 33);
-  ctx1.fillText('CENA ZA JEDN.', 1170, thY + 33);
-  ctx1.fillText('CELKEM', 1420, thY + 33);
-
-  // Items Rows
-  let curY = thY + 50;
-  let invoiceTotal = 0;
-
-  invoice.items.forEach((item, idx) => {
-    const rowTotal = item.quantity * item.unitPrice;
-    invoiceTotal += rowTotal;
-
-    ctx1.fillStyle = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
-    ctx1.fillRect(80, curY, A4_W - 160, 55);
-
-    ctx1.strokeStyle = '#e2e8f0';
-    ctx1.lineWidth = 1;
-    ctx1.strokeRect(80, curY, A4_W - 160, 55);
-
-    ctx1.fillStyle = '#0f172a';
-    ctx1.font = 'bold 22px sans-serif';
-    ctx1.fillText(item.description, 105, curY + 36);
-
-    ctx1.fillStyle = '#475569';
-    ctx1.font = '22px sans-serif';
-    ctx1.fillText(`${item.quantity} ks`, 970, curY + 36);
-
-    ctx1.fillStyle = '#334155';
-    ctx1.font = '22px monospace';
-    ctx1.fillText(`${item.unitPrice.toLocaleString('cs-CZ')} Kč`, 1170, curY + 36);
-
-    ctx1.fillStyle = '#0f172a';
-    ctx1.font = 'bold 23px monospace';
-    ctx1.fillText(`${rowTotal.toLocaleString('cs-CZ')} Kč`, 1400, curY + 36);
-
-    curY += 55;
+  const canvas = await html2canvas(element, {
+    scale: 2, // High resolution (Retina/2x)
+    backgroundColor: '#020617',
+    useCORS: true,
+    logging: false,
   });
 
-  // Table Total Footer Row
-  ctx1.fillStyle = '#eef2ff';
-  ctx1.strokeStyle = '#4338ca';
-  ctx1.lineWidth = 2.5;
-  roundRect(ctx1, 80, curY + 15, A4_W - 160, 80, 16, true, true);
+  const cleanName = (bandName || 'Kapela').trim().replace(/[\s/\\?%*:|"<>]+/g, '_');
+  const link = document.createElement('a');
+  link.download = `StagePlan_Podium_${cleanName}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
 
-  ctx1.fillStyle = '#0f172a';
-  ctx1.font = 'bold 28px sans-serif';
-  ctx1.fillText('CELKEM K ÚHRADĚ:', 110, curY + 65);
+/**
+ * Render Technical Rider & Input list canvas for PDF
+ */
+function createRiderCanvas(params: ExportPdfParams, isStandalone = false): HTMLCanvasElement | null {
+  const {
+    bandName,
+    invoice,
+    items,
+    allInstrumentChannels,
+    totalXlrRequired,
+    totalSpeakonRequired,
+    totalJackRequired,
+    totalPowerStrips,
+    totalPoweredDevices,
+    totalDiBoxes = 0,
+    totalPowerSources = 0,
+    totalIemStations = 0,
+    micCounts,
+    standCounts,
+  } = params;
 
-  ctx1.fillStyle = '#4338ca';
-  ctx1.font = 'bold 38px monospace';
-  ctx1.fillText(`${invoiceTotal.toLocaleString('cs-CZ')} Kč`, 1280, curY + 68);
-
-  // Payment Instruction Callout Box
-  const calloutY = curY + 125;
-  ctx1.fillStyle = '#f1f5f9';
-  ctx1.strokeStyle = '#cbd5e1';
-  ctx1.lineWidth = 2;
-  roundRect(ctx1, 80, calloutY, A4_W - 160, 180, 20, true, true);
-
-  ctx1.fillStyle = '#334155';
-  ctx1.font = 'bold 22px sans-serif';
-  ctx1.fillText('Platební pokyny pro bezhotovostní převod:', 110, calloutY + 45);
-
-  ctx1.font = '22px sans-serif';
-  ctx1.fillText(`Bankovní účet:  ${invoice.supplierAccount || '1234567890/0300'}`, 110, calloutY + 85);
-  ctx1.fillText(`Variabilní symbol:  ${invoice.variableSymbol || invoice.invoiceNumber}  |  Splatnost do: ${new Date(invoice.dueDate).toLocaleDateString('cs-CZ')}`, 110, calloutY + 125);
-  ctx1.fillStyle = '#64748b';
-  ctx1.font = 'italic 20px sans-serif';
-  ctx1.fillText(invoice.notes || 'Děkujeme za spolupráci.', 110, calloutY + 160);
-
-  // Bottom Signature area
-  const signY = A4_H - 180;
-  ctx1.strokeStyle = '#cbd5e1';
-  ctx1.lineWidth = 2;
-  ctx1.beginPath();
-  ctx1.moveTo(80, signY);
-  ctx1.lineTo(A4_W - 80, signY);
-  ctx1.stroke();
-
-  ctx1.fillStyle = '#64748b';
-  ctx1.font = '20px sans-serif';
-  ctx1.fillText(`Vystavil: ${invoice.supplierName || 'Zvukový mistr'}`, 80, signY + 50);
-  ctx1.fillText('StageMaster Pro • Daňový doklad & Vyúčtování', 80, signY + 90);
-
-  ctx1.fillText('Podpis a razítko vystavitele:', A4_W - 450, signY + 50);
-  ctx1.strokeStyle = '#94a3b8';
-  ctx1.lineWidth = 1.5;
-  ctx1.beginPath();
-  ctx1.moveTo(A4_W - 450, signY + 120);
-  ctx1.lineTo(A4_W - 80, signY + 120);
-  ctx1.stroke();
-
-  // Add Page 1 to PDF
-  const page1Data = canvas1.toDataURL('image/jpeg', 0.95);
-  pdf.addImage(page1Data, 'JPEG', 0, 0, 210, 297);
-
-  // -------------------------------------------------------------
-  // PAGE 2: STAGE PLÁN & INPUT LIST XR18 & CHECKLIST DO AUTA
-  // -------------------------------------------------------------
-  pdf.addPage();
   const canvas2 = document.createElement('canvas');
   canvas2.width = A4_W;
   canvas2.height = A4_H;
   const ctx2 = canvas2.getContext('2d');
-  if (!ctx2) {
-    pdf.save(`Faktura_StagePlan_${(bandName || 'Akce').replace(/\s+/g, '_')}.pdf`);
-    return;
-  }
+  if (!ctx2) return null;
 
   // Background
   ctx2.fillStyle = '#ffffff';
   ctx2.fillRect(0, 0, A4_W, A4_H);
 
   // Top accent bar
-  ctx2.fillStyle = '#0284c7';
+  ctx2.fillStyle = isStandalone ? '#4338ca' : '#0284c7';
   ctx2.fillRect(0, 0, A4_W, 24);
 
-  // Header Page 2
-  ctx2.fillStyle = '#0284c7';
+  // Header
+  ctx2.fillStyle = isStandalone ? '#4338ca' : '#0284c7';
   ctx2.font = 'bold 22px sans-serif';
-  ctx2.fillText('PŘÍLOHA K FAKTUŘE • TECHNICKÝ RIDER', 80, 80);
+  ctx2.fillText(
+    isStandalone
+      ? 'OFICIÁLNÍ TECHNICKÝ RIDER • STAGE PLÁN & INPUT LIST'
+      : 'PŘÍLOHA K FAKTUŘE • TECHNICKÝ RIDER',
+    80,
+    80
+  );
 
   ctx2.fillStyle = '#0f172a';
   ctx2.font = 'bold 50px sans-serif';
@@ -316,7 +107,11 @@ export function exportInvoiceAndRiderPdf({
 
   ctx2.fillStyle = '#475569';
   ctx2.font = 'bold 24px sans-serif';
-  ctx2.fillText(`Mixážní pult: Behringer XR18 Digital  |  Datum: ${new Date(invoice.eventDate).toLocaleDateString('cs-CZ')}`, 80, 185);
+  ctx2.fillText(
+    `Mixážní pult: Behringer XR18 Digital  |  Datum akce: ${new Date(invoice.eventDate).toLocaleDateString('cs-CZ')}`,
+    80,
+    185
+  );
 
   // Divider
   ctx2.strokeStyle = '#cbd5e1';
@@ -333,7 +128,7 @@ export function exportInvoiceAndRiderPdf({
   ctx2.fillText('INPUT LIST — ZAPOJENÍ VSTUPŮ PULTU BEHRINGER XR18 (CH 1–16):', 80, inputListY);
 
   const inThY = inputListY + 20;
-  ctx2.fillStyle = '#0369a1';
+  ctx2.fillStyle = isStandalone ? '#4338ca' : '#0369a1';
   ctx2.fillRect(80, inThY, A4_W - 160, 48);
 
   ctx2.fillStyle = '#ffffff';
@@ -440,9 +235,9 @@ export function exportInvoiceAndRiderPdf({
       isIem
         ? '🎧 In-Ear Monitor (Aux XLR + 230V vysílač)'
         : isSpeakon
-        ? '🔊 Pasivní bedna (Kabel Speakon)'
+        ? '🔊 Pasivní bedna (Kabel Speakon ze zes.)'
         : isJack
-        ? '🔌 Pasivní bedna (Kabel Jack 6.3mm)'
+        ? '🔌 Pasivní bedna (Kabel Jack 6.3mm ze zes.)'
         : '⚡ Aktivní bedna (XLR signál + 230V)',
       620,
       curOutY + 32
@@ -459,26 +254,20 @@ export function exportInvoiceAndRiderPdf({
 
   if (outputs.length === 0) {
     ctx2.fillStyle = '#64748b';
-    ctx2.font = 'italic 20px sans-serif';
-    ctx2.fillText('Nebyly nastaveny žádné výstupy.', 105, curOutY + 30);
-    curOutY += 40;
+    ctx2.font = 'italic 22px sans-serif';
+    ctx2.fillText('Žádné výstupy nebyly zatím nakonfigurovány.', 120, curOutY + 30);
+    curOutY += 45;
   }
 
-  // Equipment Checklist Box
+  // Equipment packing checklist
   const checkY = curOutY + 30;
-  ctx2.fillStyle = '#fefce8';
-  ctx2.strokeStyle = '#fef08a';
-  ctx2.lineWidth = 2;
-  roundRect(ctx2, 80, checkY, A4_W - 160, 320, 20, true, true);
+  ctx2.fillStyle = '#0f172a';
+  ctx2.font = 'bold 26px sans-serif';
+  ctx2.fillText('SEZNAM TECHNIKY & KABELÁŽE K NALOŽENÍ (PACKING CHECKLIST):', 80, checkY);
 
-  ctx2.fillStyle = '#854d0e';
-  ctx2.font = 'bold 24px sans-serif';
-  ctx2.fillText('SEZNAM TECHNIKY K NALOŽENÍ DO AUTA (CHECKLIST):', 110, checkY + 45);
-
-  // 4 Badges in Checklist
-  const badgeW = 330;
-  const badgeH = 80;
-  const badgeY = checkY + 70;
+  const badgeY = checkY + 25;
+  const badgeW = 320;
+  const badgeH = 88;
 
   // 1. XLR
   ctx2.fillStyle = '#e0f2fe';
@@ -526,7 +315,7 @@ export function exportInvoiceAndRiderPdf({
   ctx2.fillText('Pódiové přípojky, DI Boxy & In-Ear:', 110, checkY + 185);
   ctx2.font = '19px sans-serif';
   ctx2.fillText(
-    `Přípojky 230V: ${totalPowerSources} ks  •  DI Boxy: ${totalDiBoxes} ks  •  In-Ear vysílače: ${totalIemStations} ks  •  Spotřebiče 230V: ${totalPoweredDevices} ks`,
+    `Přípojky 230V: ${totalPowerSources} ks  •  DI Boxy: ${totalDiBoxes} ks  •  In-Ear stanice: ${totalIemStations} ks  •  Spotřebiče 230V: ${totalPoweredDevices} ks`,
     110,
     checkY + 215
   );
@@ -547,12 +336,273 @@ export function exportInvoiceAndRiderPdf({
     .join('  •  ') || 'Stojany netřeba';
   ctx2.fillText(standListStr.slice(0, 110), 110, checkY + 318);
 
-  // Add Page 2 to PDF
-  const page2Data = canvas2.toDataURL('image/jpeg', 0.95);
-  pdf.addImage(page2Data, 'JPEG', 0, 0, 210, 297);
+  return canvas2;
+}
+
+/**
+ * Export ONLY Stage Plan & Technical Rider (1-page PDF without invoice)
+ */
+export function exportStagePlanOnlyPdf(params: ExportPdfParams): void {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const canvas = createRiderCanvas(params, true);
+  if (!canvas) {
+    alert('Nepodařilo se vygenerovat PDF.');
+    return;
+  }
+
+  const pageData = canvas.toDataURL('image/jpeg', 0.95);
+  pdf.addImage(pageData, 'JPEG', 0, 0, 210, 297);
+
+  const cleanName = (params.bandName || 'Kapela').trim().replace(/[\s/\\?%*:|"<>]+/g, '_');
+  pdf.save(`StagePlan_Rider_${cleanName}.pdf`);
+}
+
+/**
+ * Export Full 2-page document: Page 1 Invoice + Page 2 Technical Rider & Stage Plan
+ */
+export function exportInvoiceAndRiderPdf(params: ExportPdfParams): void {
+  const { bandName, invoice } = params;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+
+  // -------------------------------------------------------------
+  // PAGE 1: FAKTURA / DAŇOVÝ DOKLAD
+  // -------------------------------------------------------------
+  const canvas1 = document.createElement('canvas');
+  canvas1.width = A4_W;
+  canvas1.height = A4_H;
+  const ctx1 = canvas1.getContext('2d');
+  if (!ctx1) return;
+
+  // Background
+  ctx1.fillStyle = '#ffffff';
+  ctx1.fillRect(0, 0, A4_W, A4_H);
+
+  // Top accent bar
+  ctx1.fillStyle = '#4338ca';
+  ctx1.fillRect(0, 0, A4_W, 24);
+
+  // Document Title
+  ctx1.fillStyle = '#4338ca';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText('FAKTURA — DAŇOVÝ DOKLAD & VYÚČTOVÁNÍ ZA OZVUČENÍ', 80, 80);
+
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 54px sans-serif';
+  ctx1.fillText(`Faktura č. ${invoice.invoiceNumber}`, 80, 145);
+
+  ctx1.fillStyle = '#64748b';
+  ctx1.font = 'bold 24px sans-serif';
+  ctx1.fillText(`Variabilní symbol: ${invoice.variableSymbol || invoice.invoiceNumber}`, 80, 185);
+
+  // Dates Box on right
+  const dateBoxX = 1000;
+  const dateBoxY = 60;
+  ctx1.fillStyle = '#f8fafc';
+  ctx1.strokeStyle = '#e2e8f0';
+  ctx1.lineWidth = 2;
+  roundRect(ctx1, dateBoxX, dateBoxY, 520, 140, 16, true, true);
+
+  ctx1.fillStyle = '#475569';
+  ctx1.font = '22px sans-serif';
+  ctx1.fillText('Datum vystavení:', dateBoxX + 25, dateBoxY + 40);
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText(new Date(invoice.issueDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 40);
+
+  ctx1.fillStyle = '#475569';
+  ctx1.font = '22px sans-serif';
+  ctx1.fillText('Datum zdan. plnění:', dateBoxX + 25, dateBoxY + 80);
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText(new Date(invoice.eventDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 80);
+
+  ctx1.fillStyle = '#4338ca';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText('Datum splatnosti:', dateBoxX + 25, dateBoxY + 120);
+  ctx1.fillText(new Date(invoice.dueDate).toLocaleDateString('cs-CZ'), dateBoxX + 320, dateBoxY + 120);
+
+  // Divider
+  ctx1.strokeStyle = '#cbd5e1';
+  ctx1.lineWidth = 2;
+  ctx1.beginPath();
+  ctx1.moveTo(80, 220);
+  ctx1.lineTo(A4_W - 80, 220);
+  ctx1.stroke();
+
+  // Supplier & Client Boxes
+  const suppBoxY = 250;
+  const boxW = 690;
+  const boxH = 260;
+
+  // Supplier Box (Dodavatel)
+  ctx1.fillStyle = '#f8fafc';
+  ctx1.strokeStyle = '#e2e8f0';
+  ctx1.lineWidth = 2;
+  roundRect(ctx1, 80, suppBoxY, boxW, boxH, 16, true, true);
+
+  ctx1.fillStyle = '#4338ca';
+  ctx1.font = 'bold 20px sans-serif';
+  ctx1.fillText('DODAVATEL / POSKYTOVATEL ZVUKU:', 110, suppBoxY + 40);
+
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 26px sans-serif';
+  ctx1.fillText(invoice.supplierName || 'Jan Novák - Zvukař', 110, suppBoxY + 78);
+
+  ctx1.fillStyle = '#334155';
+  ctx1.font = '22px sans-serif';
+  ctx1.fillText(`IČO: ${invoice.supplierIco || '-'}   |   DIČ: ${invoice.supplierDic || 'Neplátce DPH'}`, 110, suppBoxY + 118);
+  ctx1.fillText(invoice.supplierAddress || 'Praha', 110, suppBoxY + 155);
+
+  ctx1.fillStyle = '#64748b';
+  ctx1.font = '20px sans-serif';
+  ctx1.fillText(`E-mail: ${invoice.supplierEmail || '-'}  •  Tel: ${invoice.supplierPhone || '-'}`, 110, suppBoxY + 195);
+  ctx1.fillText(`Bankovní účet: ${invoice.supplierAccount || '1234567890/0300'}`, 110, suppBoxY + 230);
+
+  // Client Box (Odběratel)
+  const clientX = 830;
+  ctx1.fillStyle = '#f8fafc';
+  ctx1.strokeStyle = '#e2e8f0';
+  ctx1.lineWidth = 2;
+  roundRect(ctx1, clientX, suppBoxY, boxW, boxH, 16, true, true);
+
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 20px sans-serif';
+  ctx1.fillText('ODBĚRATEL / POŘADATEL / KAPELA:', clientX + 30, suppBoxY + 40);
+
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 26px sans-serif';
+  ctx1.fillText(invoice.clientName || bandName || 'Pořadatel akce', clientX + 30, suppBoxY + 78);
+
+  ctx1.fillStyle = '#334155';
+  ctx1.font = '22px sans-serif';
+  if (invoice.clientIco) {
+    ctx1.fillText(`IČO: ${invoice.clientIco}`, clientX + 30, suppBoxY + 118);
+  } else {
+    ctx1.fillText('Koncertní vystoupení & ozvučení', clientX + 30, suppBoxY + 118);
+  }
+  ctx1.fillText(invoice.clientAddress || 'Místo konání akce', clientX + 30, suppBoxY + 155);
+
+  ctx1.fillStyle = '#4338ca';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText(`Název akce / kapela: ${bandName || 'Koncert'}`, clientX + 30, suppBoxY + 205);
+
+  // Invoice Items Table
+  const tableY = suppBoxY + boxH + 40;
+  ctx1.fillStyle = '#0f172a';
+  ctx1.font = 'bold 26px sans-serif';
+  ctx1.fillText('FAKTUROVANÉ POLOŽKY & TECHNICKÉ SLUŽBY:', 80, tableY);
+
+  const thY = tableY + 20;
+  ctx1.fillStyle = '#1e1b4b';
+  ctx1.fillRect(80, thY, A4_W - 160, 52);
+
+  ctx1.fillStyle = '#ffffff';
+  ctx1.font = 'bold 20px sans-serif';
+  ctx1.fillText('POPIS SLUŽBY / PRONÁJMU APARATURY', 110, thY + 34);
+  ctx1.fillText('POČET', 960, thY + 34);
+  ctx1.fillText('CENA / JEDN.', 1120, thY + 34);
+  ctx1.fillText('CELKEM', 1370, thY + 34);
+
+  let rowY = thY + 52;
+  let totalAmount = 0;
+
+  invoice.items.forEach((item, idx) => {
+    const itemTotal = item.quantity * item.unitPrice;
+    totalAmount += itemTotal;
+
+    ctx1.fillStyle = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
+    ctx1.fillRect(80, rowY, A4_W - 160, 56);
+
+    ctx1.strokeStyle = '#e2e8f0';
+    ctx1.lineWidth = 1;
+    ctx1.strokeRect(80, rowY, A4_W - 160, 56);
+
+    ctx1.fillStyle = '#0f172a';
+    ctx1.font = 'bold 22px sans-serif';
+    ctx1.fillText(item.description, 110, rowY + 36);
+
+    ctx1.fillStyle = '#475569';
+    ctx1.font = '22px sans-serif';
+    ctx1.fillText(`${item.quantity} ks`, 975, rowY + 36);
+    ctx1.fillText(`${item.unitPrice.toLocaleString('cs-CZ')} Kč`, 1120, rowY + 36);
+
+    ctx1.fillStyle = '#0f172a';
+    ctx1.font = 'bold 24px monospace';
+    ctx1.fillText(`${itemTotal.toLocaleString('cs-CZ')} Kč`, 1370, rowY + 36);
+
+    rowY += 56;
+  });
+
+  // Total Summary Box
+  const summaryY = rowY + 30;
+  ctx1.fillStyle = '#1e1b4b';
+  roundRect(ctx1, A4_W - 650, summaryY, 570, 110, 16, true, false);
+
+  ctx1.fillStyle = '#c7d2fe';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText('CELKEM K ÚHRADĚ:', A4_W - 610, summaryY + 45);
+
+  ctx1.fillStyle = '#ffffff';
+  ctx1.font = 'bold 44px monospace';
+  ctx1.fillText(`${totalAmount.toLocaleString('cs-CZ')} Kč`, A4_W - 610, summaryY + 92);
+
+  // Bank Info Callout Box
+  const calloutY = summaryY + 140;
+  ctx1.fillStyle = '#eef2ff';
+  ctx1.strokeStyle = '#c7d2fe';
+  ctx1.lineWidth = 2;
+  roundRect(ctx1, 80, calloutY, A4_W - 160, 180, 16, true, true);
+
+  ctx1.fillStyle = '#334155';
+  ctx1.font = 'bold 22px sans-serif';
+  ctx1.fillText('Platební pokyny pro bezhotovostní převod:', 110, calloutY + 45);
+
+  ctx1.font = '22px sans-serif';
+  ctx1.fillText(`Bankovní účet:  ${invoice.supplierAccount || '1234567890/0300'}`, 110, calloutY + 85);
+  ctx1.fillText(`Variabilní symbol:  ${invoice.variableSymbol || invoice.invoiceNumber}  |  Splatnost do: ${new Date(invoice.dueDate).toLocaleDateString('cs-CZ')}`, 110, calloutY + 125);
+  ctx1.fillStyle = '#64748b';
+  ctx1.font = 'italic 20px sans-serif';
+  ctx1.fillText(invoice.notes || 'Děkujeme za spolupráci.', 110, calloutY + 160);
+
+  // Bottom Signature area
+  const signY = A4_H - 180;
+  ctx1.strokeStyle = '#cbd5e1';
+  ctx1.lineWidth = 2;
+  ctx1.beginPath();
+  ctx1.moveTo(80, signY);
+  ctx1.lineTo(A4_W - 80, signY);
+  ctx1.stroke();
+
+  ctx1.fillStyle = '#64748b';
+  ctx1.font = '20px sans-serif';
+  ctx1.fillText(`Vystavil: ${invoice.supplierName || 'Zvukový mistr'}`, 80, signY + 50);
+  ctx1.fillText('StageMaster Pro • Daňový doklad & Vyúčtování', 80, signY + 90);
+
+  ctx1.fillText('Podpis a razítko vystavitele:', A4_W - 450, signY + 50);
+  ctx1.strokeStyle = '#94a3b8';
+  ctx1.lineWidth = 1.5;
+  ctx1.beginPath();
+  ctx1.moveTo(A4_W - 450, signY + 120);
+  ctx1.lineTo(A4_W - 80, signY + 120);
+  ctx1.stroke();
+
+  // Add Page 1 to PDF
+  const page1Data = canvas1.toDataURL('image/jpeg', 0.95);
+  pdf.addImage(page1Data, 'JPEG', 0, 0, 210, 297);
+
+  // -------------------------------------------------------------
+  // PAGE 2: STAGE PLÁN & INPUT LIST XR18 & CHECKLIST DO AUTA
+  // -------------------------------------------------------------
+  const canvas2 = createRiderCanvas(params, false);
+  if (canvas2) {
+    pdf.addPage();
+    const page2Data = canvas2.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(page2Data, 'JPEG', 0, 0, 210, 297);
+  }
 
   // Download PDF file
-  const fileName = `Faktura_StagePlan_${(bandName || 'Akce').replace(/\s+/g, '_')}.pdf`;
+  const cleanName = (bandName || 'Akce').trim().replace(/[\s/\\?%*:|"<>]+/g, '_');
+  const fileName = `Faktura_StagePlan_${cleanName}.pdf`;
   pdf.save(fileName);
 }
 

@@ -34,9 +34,14 @@ import {
   Phone,
   Mail,
   Speaker,
-  Headphones
+  Headphones,
+  Camera
 } from 'lucide-react';
-import { exportInvoiceAndRiderPdf } from '../../utils/pdfExport';
+import { 
+  exportInvoiceAndRiderPdf, 
+  exportStagePlanOnlyPdf, 
+  exportStageCanvasImage 
+} from '../../utils/pdfExport';
 
 interface PhaseControlsProps {
   currentPhase: StagePhase;
@@ -77,6 +82,8 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
 }) => {
   const [copiedRider, setCopiedRider] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingStagePlan, setIsExportingStagePlan] = useState(false);
+  const [isExportingImage, setIsExportingImage] = useState(false);
   const [isEditingInvoiceDetails, setIsEditingInvoiceDetails] = useState(false);
   const presentationRef = useRef<HTMLDivElement>(null);
 
@@ -549,6 +556,47 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
     }
   };
 
+  // Export ONLY Stage Plan (1-page technical rider PDF without invoice)
+  const handleExportStagePlanOnlyPdf = () => {
+    setIsExportingStagePlan(true);
+    try {
+      exportStagePlanOnlyPdf({
+        bandName,
+        invoice: curInvoice,
+        items,
+        allInstrumentChannels,
+        totalXlrRequired,
+        totalSpeakonRequired,
+        totalJackRequired,
+        totalPowerStrips,
+        totalPoweredDevices,
+        totalDiBoxes,
+        totalPowerSources,
+        totalIemStations,
+        micCounts,
+        standCounts,
+      });
+    } catch (err) {
+      console.error('Stage plan export error:', err);
+      alert('Export Stage Plánu selhal.');
+    } finally {
+      setIsExportingStagePlan(false);
+    }
+  };
+
+  // Export 2D Stage Canvas as PNG Image
+  const handleExportStageImage = async () => {
+    setIsExportingImage(true);
+    try {
+      await exportStageCanvasImage('stage-canvas-capture', bandName);
+    } catch (err) {
+      console.error('Stage image export error:', err);
+      alert('Nepodařilo se vygenerovat obrázek pódia.');
+    } finally {
+      setIsExportingImage(false);
+    }
+  };
+
   // Copy plain text rider & vyúčtování
   const handleCopyTextRider = () => {
     let t = `FAKTURA / VYÚČTOVÁNÍ & TECHNICKÝ RIDER\n`;
@@ -867,12 +915,34 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
               </button>
 
               <button
+                onClick={handleExportStageImage}
+                disabled={isExportingImage}
+                className="px-2.5 py-2 bg-slate-800 hover:bg-slate-750 text-emerald-400 border border-emerald-600/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow"
+                title="Stáhnout samotné grafické pódium jako obrázek PNG"
+              >
+                <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">{isExportingImage ? 'Ukládám...' : 'Pódium (PNG)'}</span>
+                <span className="sm:hidden">PNG</span>
+              </button>
+
+              <button
+                onClick={handleExportStagePlanOnlyPdf}
+                disabled={isExportingStagePlan}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/30 transition shrink-0 active:scale-95"
+                title="Stáhnout pouze technický rider a stage plán bez faktury"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{isExportingStagePlan ? 'Generuji...' : 'Jen Stage Plán (PDF)'}</span>
+              </button>
+
+              <button
                 onClick={handleExportPdf}
                 disabled={isExporting}
-                className="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition shrink-0 active:scale-95"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition shrink-0 active:scale-95"
+                title="Stáhnout kompletní 2-stránkové PDF (Faktura + Stage Plán)"
               >
-                <Download className="w-4 h-4" />
-                <span>{isExporting ? 'Generuji...' : 'Stáhnout PDF'}</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>{isExporting ? 'Generuji...' : 'Komplet s fakturou (PDF)'}</span>
               </button>
             </div>
           </div>

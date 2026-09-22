@@ -393,6 +393,7 @@ export function App() {
           cables={project.cables}
           currentPhase={currentPhase}
           selectedItemId={selectedItemId}
+          bandName={project.bandName}
           onSelectItem={setSelectedItemId}
           onUpdateItems={handleUpdateItems}
           onUpdateCables={handleUpdateCables}

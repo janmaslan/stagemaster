@@ -22,15 +22,18 @@ import {
   Zap,
   Volume2,
   CheckSquare,
-  FolderOpen
+  FolderOpen,
+  Camera
 } from 'lucide-react';
 import { getPresetInstrument } from '../../utils/stagePresets';
+import { exportStageCanvasImage } from '../../utils/pdfExport';
 
 interface InteractiveCanvasProps {
   items: InteractiveStageItem[];
   cables: StageCable[];
   currentPhase: StagePhase;
   selectedItemId: string | null;
+  bandName?: string;
   onSelectItem: (id: string | null) => void;
   onUpdateItems: (items: InteractiveStageItem[]) => void;
   onUpdateCables: (cables: StageCable[]) => void;
@@ -45,6 +48,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   cables,
   currentPhase,
   selectedItemId,
+  bandName = 'Kapela',
   onSelectItem,
   onUpdateItems,
   onUpdateCables,
@@ -54,6 +58,20 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   onOpenProjectManager,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isExportingImage, setIsExportingImage] = useState(false);
+
+  const handleDownloadStageImage = async () => {
+    if (!containerRef.current) return;
+    setIsExportingImage(true);
+    try {
+      await exportStageCanvasImage(containerRef.current, bandName);
+    } catch (err) {
+      console.error('Export stage image failed:', err);
+      alert('Nepodařilo se vygenerovat obrázek pódia.');
+    } finally {
+      setIsExportingImage(false);
+    }
+  };
 
   // Modal states
   const [modalMode, setModalMode] = useState<'configure' | 'patch_input' | 'patch_output' | null>(null);
@@ -646,7 +664,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               <button
                 type="button"
                 onClick={onOpenProjectManager}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 flex items-center gap-1 transition active:scale-95"
+                className="px-2 py-1 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-200 flex items-center gap-1 transition active:scale-95"
                 title="Správa stage plánů"
               >
                 <FolderOpen className="w-3 h-3 text-indigo-400" />
@@ -656,8 +674,20 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
             <button
               type="button"
+              onClick={handleDownloadStageImage}
+              disabled={isExportingImage}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-[10px] font-bold text-emerald-400 flex items-center gap-1 transition active:scale-95"
+              title="Stáhnout samotné grafické pódium jako obrázek PNG"
+            >
+              <Camera className="w-3 h-3 text-emerald-400" />
+              <span className="hidden sm:inline">{isExportingImage ? 'Ukládám...' : 'Pódium PNG'}</span>
+              <span className="sm:hidden">PNG</span>
+            </button>
+
+            <button
+              type="button"
               onClick={toggleFullscreenStage}
-              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-300 flex items-center gap-1 transition"
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-300 flex items-center gap-1 transition"
               title="Zmenšit zobrazení"
             >
               <Minimize2 className="w-3 h-3 text-indigo-400" />
@@ -716,6 +746,18 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleDownloadStageImage}
+              disabled={isExportingImage}
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-emerald-400 hover:text-white flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
+              title="Stáhnout samotné grafické pódium jako obrázek PNG"
+            >
+              <Camera className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">{isExportingImage ? 'Ukládám...' : 'Stáhnout pódium (PNG)'}</span>
+              <span className="sm:hidden">PNG</span>
+            </button>
+
             {onOpenProjectManager && (
               <button
                 type="button"
@@ -744,6 +786,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
       {/* 2D Stage Canvas Container */}
       <div
+        id="stage-canvas-capture"
         ref={containerRef}
         onClick={() => onSelectItem(null)}
         className={`relative w-full bg-slate-950 border-2 border-slate-800 rounded-2xl overflow-hidden shadow-2xl transition-all ${

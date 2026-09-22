@@ -36,7 +36,7 @@ export function getPresetInstrument(
             id: 'ch-d3-' + Date.now(),
             name: 'Overhead L',
             pickupType: 'mic',
-            micModel: 'Rode NT5 (Kondenzátor)',
+            micModel: 'Behringer C2 (Kondenzátor tužka)',
             stand: 'high_boom',
             needsPhantom48V: true,
           },
@@ -44,7 +44,7 @@ export function getPresetInstrument(
             id: 'ch-d4-' + Date.now(),
             name: 'Overhead R',
             pickupType: 'mic',
-            micModel: 'Rode NT5 (Kondenzátor)',
+            micModel: 'Behringer C2 (Kondenzátor tužka)',
             stand: 'high_boom',
             needsPhantom48V: true,
           },
@@ -178,6 +178,16 @@ export function getPresetInstrument(
         ],
       };
 
+    case 'power_source':
+      return {
+        name: `Přípojka 230V${suffix}`,
+        category: 'power_source',
+        subType: 'power_source',
+        x: count === 0 ? 12 : 88,
+        y: 18,
+        needsPower230V: false,
+      };
+
     case 'power_strip':
       return {
         name: `Prodlužka 230V #${count + 1}`,
@@ -187,6 +197,22 @@ export function getPresetInstrument(
         y: 35 + Math.floor(count / 3) * 25,
         needsPower230V: false,
       };
+
+    case 'iem':
+    case 'iem_station': {
+      const nextAux = count < 6 ? `Aux ${count + 1}` : 'Aux 1';
+      return {
+        name: `In-Ear (IEM) ${count + 1}`,
+        category: 'iem_station',
+        subType: 'iem_station',
+        speakerType: 'iem',
+        needsPower230V: true,
+        x: 35 + (count % 4) * 18,
+        y: 75,
+        assignedOutputPort: nextAux,
+        targetPerformer: `Muzikant ${count + 1}`,
+      };
+    }
 
     case 'wedge': {
       const nextAux = count < 6 ? `Aux ${count + 1}` : 'Aux 1';

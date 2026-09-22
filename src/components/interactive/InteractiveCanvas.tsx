@@ -183,43 +183,92 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
         } else if (currentPhase === 2 && ['instrument', 'vocal'].includes(clickedItem.category)) {
           // In Phase 2: open XR18PatchModal with channel picker + mic picker
           setModalMode('patch_input');
-        } else if (currentPhase === 3 && clickedItem.needsPower230V && clickedItem.category !== 'power_strip') {
-          // In Phase 3: Connect to power strip
-          const strips = items.filter((i) => i.category === 'power_strip');
-          if (strips.length === 0) {
-            alert('Nejprve přidejte na pódium tlačítkem nahoře "+ Prodlužka 230V"!');
-          } else {
-            const existingPowerCable = cables.find(
+        } else if (currentPhase === 3) {
+          // In Phase 3:
+          // 1. If clicked a power strip -> connect to nearest power source (or toggle disconnect)
+          if (clickedItem.category === 'power_strip' || clickedItem.subType === 'power_strip') {
+            const existingSourceCable = cables.find(
               (c) => c.type === 'power' && c.toId === clickedItem.id
             );
-            if (existingPowerCable) {
-              onUpdateCables(cables.filter((c) => c.id !== existingPowerCable.id));
+            if (existingSourceCable) {
+              onUpdateCables(cables.filter((c) => c.id !== existingSourceCable.id));
               onUpdateItems(
                 items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: undefined } : it))
               );
             } else {
-              let nearestStrip = strips[0];
-              let minDistance = Infinity;
-              for (const s of strips) {
-                const dist = Math.hypot((s.x ?? 50) - (clickedItem.x ?? 50), (s.y ?? 50) - (clickedItem.y ?? 50));
-                if (dist < minDistance) {
-                  minDistance = dist;
-                  nearestStrip = s;
+              const powerSources = items.filter((i) => i.category === 'power_source' || i.subType === 'power_source');
+              if (powerSources.length === 0) {
+                alert('Nejprve přidejte tlačítkem nahoře "+ ⚡ Přípojka 230V" hlavní přívod elektřiny na pódium!');
+              } else {
+                let nearestSource = powerSources[0];
+                let minDistance = Infinity;
+                for (const ps of powerSources) {
+                  const dist = Math.hypot((ps.x ?? 50) - (clickedItem.x ?? 50), (ps.y ?? 50) - (clickedItem.y ?? 50));
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestSource = ps;
+                  }
                 }
+                const newCable: StageCable = {
+                  id: 'pwr-strip-' + Date.now(),
+                  fromId: nearestSource.id,
+                  toId: clickedItem.id,
+                  type: 'power',
+                  lengthMeters: 10,
+                  label: '230V',
+                };
+                onUpdateCables([...cables, newCable]);
+                onUpdateItems(
+                  items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: nearestSource.id } : it))
+                );
               }
-              const newCable: StageCable = {
-                id: 'pwr-' + Date.now(),
-                fromId: nearestStrip.id,
-                toId: clickedItem.id,
-                type: 'power',
-                lengthMeters: 5,
-                label: '230V',
-              };
-              onUpdateCables([...cables, newCable]);
-              onUpdateItems(
-                items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: nearestStrip.id } : it))
-              );
             }
+          } else if (clickedItem.needsPower230V) {
+            // 2. If clicked an appliance needing 230V -> connect to nearest strip or source (or disconnect)
+            const powerPoints = items.filter(
+              (i) => i.category === 'power_strip' || i.category === 'power_source' || i.subType === 'power_strip' || i.subType === 'power_source'
+            );
+            if (powerPoints.length === 0) {
+              alert('Nejprve přidejte na pódium "+ ⚡ Přípojka 230V" nebo "+ 🔌 Prodlužka 230V"!');
+            } else {
+              const existingPowerCable = cables.find(
+                (c) => c.type === 'power' && c.toId === clickedItem.id
+              );
+              if (existingPowerCable) {
+                onUpdateCables(cables.filter((c) => c.id !== existingPowerCable.id));
+                onUpdateItems(
+                  items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: undefined } : it))
+                );
+              } else {
+                // Prefer power_strip if available, otherwise power_source
+                const strips = powerPoints.filter((i) => i.category === 'power_strip' || i.subType === 'power_strip');
+                const candidatePoints = strips.length > 0 ? strips : powerPoints;
+
+                let nearestPoint = candidatePoints[0];
+                let minDistance = Infinity;
+                for (const pt of candidatePoints) {
+                  const dist = Math.hypot((pt.x ?? 50) - (clickedItem.x ?? 50), (pt.y ?? 50) - (clickedItem.y ?? 50));
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestPoint = pt;
+                  }
+                }
+                const newCable: StageCable = {
+                  id: 'pwr-' + Date.now(),
+                  fromId: nearestPoint.id,
+                  toId: clickedItem.id,
+                  type: 'power',
+                  lengthMeters: 5,
+                  label: '230V',
+                };
+                onUpdateCables([...cables, newCable]);
+                onUpdateItems(
+                  items.map((it) => (it.id === clickedItem.id ? { ...it, powerConnectedToId: nearestPoint.id } : it))
+                );
+              }
+            }
+          } else {
+            setModalMode('configure');
           }
         } else {
           setModalMode('configure');
@@ -243,7 +292,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     needsPhantom: boolean, 
     cableLength: number,
     micModel?: string,
-    pickupType?: 'mic' | 'line_xlr' | 'line_jack' | 'line'
+    pickupType?: 'mic' | 'line_xlr' | 'line_jack' | 'line_di' | 'line'
   ) => {
     if (!selectedItem || !xr18Item) return;
 
@@ -317,7 +366,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   const handleConfirmOutputPatch = (
     port: string, 
     performer: string, 
-    speakerType: 'active' | 'passive_speakon' | 'passive_jack'
+    speakerType: 'active' | 'passive_speakon' | 'passive_jack' | 'iem'
   ) => {
     if (!selectedItem || !xr18Item) return;
 
@@ -329,7 +378,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               assignedOutputPort: port,
               targetPerformer: performer,
               speakerType,
-              needsPower230V: speakerType === 'active', // Active speakers need 230V!
+              needsPower230V: speakerType === 'active' || speakerType === 'iem', // Active speakers and IEM transmitters need 230V!
             }
           : it
       )
@@ -489,13 +538,22 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             )}
 
             {currentPhase === 3 && (
-              <button
-                onClick={() => onAddItem?.(getPresetInstrument('power_strip', items))}
-                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap"
-              >
-                <Plus className="w-3 h-3" />
-                <span>+ Prodlužka 230V</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('power_source', items))}
+                  className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ ⚡ Přípojka 230V</span>
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('power_strip', items))}
+                  className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow transition active:scale-95 whitespace-nowrap"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ 🔌 Prodlužka 230V</span>
+                </button>
+              </div>
             )}
 
             {currentPhase === 4 && (
@@ -531,7 +589,13 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                   onClick={() => onAddItem?.(getPresetInstrument('wedge', items))}
                   className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-bold whitespace-nowrap transition active:scale-95"
                 >
-                  + Wedge
+                  + 🔊 Wedge
+                </button>
+                <button
+                  onClick={() => onAddItem?.(getPresetInstrument('iem', items))}
+                  className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-bold whitespace-nowrap transition active:scale-95"
+                >
+                  + 🎧 In-Ear (IEM)
                 </button>
               </div>
             )}
@@ -819,6 +883,11 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           allItems={items}
           onConfirmOutputPatch={handleConfirmOutputPatch}
           onUnpatch={handleUnpatchOutput}
+          onDelete={(id) => {
+            onUpdateItems(items.filter((i) => i.id !== id));
+            onUpdateCables(cables.filter((c) => c.fromId !== id && c.toId !== id));
+            onSelectItem(null);
+          }}
           onClose={() => setModalMode(null)}
         />
       )}

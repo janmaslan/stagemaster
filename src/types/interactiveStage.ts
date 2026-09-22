@@ -2,6 +2,7 @@ export type StageItemCategory =
   | 'instrument'
   | 'vocal'
   | 'power_strip'
+  | 'power_source'
   | 'mixer'
   | 'pa_speaker'
   | 'monitor_wedge'
@@ -12,7 +13,7 @@ export type StandType = 'high_boom' | 'low_boom' | 'clip_clamp' | 'straight' | '
 export interface InstrumentChannel {
   id: string;
   name: string; // e.g. "Kopák", "Virbl", "Overhead L", "Overhead R", "Kombo mic", "Kombo linka"
-  pickupType: 'mic' | 'line_jack' | 'line_xlr' | 'line';
+  pickupType: 'mic' | 'line_xlr' | 'line_jack' | 'line_di' | 'line';
   micModel: string; // free text or preset (e.g. "Shure SM57", "DI Out", etc.)
   stand: StandType;
   assignedChannelNumber?: number; // XR18 input 1..16
@@ -24,7 +25,7 @@ export interface InteractiveStageItem {
   id: string;
   name: string;
   category: StageItemCategory;
-  subType: string; // 'drums', 'guitar_amp', 'bass_amp', 'keyboard', 'acoustic_guitar', 'lead_vox', 'power_strip', 'xr18', 'pa_speaker', 'wedge'
+  subType: string; // 'drums', 'guitar_amp', 'bass_amp', 'keyboard', 'acoustic_guitar', 'lead_vox', 'power_strip', 'power_source', 'xr18', 'pa_speaker', 'wedge', 'iem_station'
   x: number; // 0 to 100 percentage of stage
   y: number; // 0 to 100 percentage of stage
   rotation?: number; // 0, 90, 180, 270
@@ -34,10 +35,10 @@ export interface InteractiveStageItem {
 
   // Power 230V
   needsPower230V?: boolean;
-  powerConnectedToId?: string; // id of power_strip
+  powerConnectedToId?: string; // id of power_strip or power_source
 
-  // PA & Monitor properties: Active (XLR + 230V) vs Passive Speakon vs Passive Jack 6.3mm
-  speakerType?: 'active' | 'passive_speakon' | 'passive_jack' | 'passive';
+  // PA & Monitor properties: Active (XLR + 230V) vs Passive Speakon vs Passive Jack 6.3mm vs In-Ear (IEM)
+  speakerType?: 'active' | 'passive_speakon' | 'passive_jack' | 'passive' | 'iem';
   assignedOutputPort?: string; // e.g. "Main L", "Main R", "Aux 1", "Aux 2"
   targetPerformer?: string;
 

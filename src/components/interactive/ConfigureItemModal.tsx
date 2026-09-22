@@ -16,7 +16,8 @@ import {
   Speaker,
   Volume2,
   Cable,
-  User
+  User,
+  Headphones
 } from 'lucide-react';
 
 interface ConfigureItemModalProps {
@@ -34,7 +35,7 @@ const POPULAR_MICS = [
   { label: 'Sennheiser e604', full: 'Sennheiser e604 (Tom clip)', phantom: false },
   { label: 'Shure Beta 91A', full: 'Shure Beta 91A (Kopák hraniční)', phantom: true },
   { label: 'Shure Beta 52A', full: 'Shure Beta 52A (Kopák basový)', phantom: false },
-  { label: 'Røde NT5', full: 'Rode NT5 (Kondenzátor)', phantom: true },
+  { label: 'Behringer C2', full: 'Behringer C2 (Kondenzátor tužka)', phantom: true },
 ];
 
 const POPULAR_DIRECT_XLR = [
@@ -89,18 +90,21 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
   const [channels, setChannels] = useState<InstrumentChannel[]>(initialChannels);
   const [customInputOpenFor, setCustomInputOpenFor] = useState<Record<string, boolean>>({});
 
-  // Speaker / Output configuration (if item is PA or Wedge)
+  // Speaker / Output configuration (if item is PA, Wedge, or IEM)
   const isPASpeaker = item.subType === 'pa_speaker';
-  const isSpeakerOrWedge = ['pa_speaker', 'wedge', 'monitor_wedge'].includes(item.subType) || item.category === 'pa_speaker' || item.category === 'monitor_wedge';
+  const isSpeakerOrWedge = ['pa_speaker', 'wedge', 'monitor_wedge', 'iem_station'].includes(item.subType) || 
+    ['pa_speaker', 'monitor_wedge', 'iem_station'].includes(item.category);
 
-  const initialSpeakerType: 'active' | 'passive_speakon' | 'passive_jack' = 
-    item.speakerType === 'passive_jack'
+  const initialSpeakerType: 'active' | 'passive_speakon' | 'passive_jack' | 'iem' = 
+    item.speakerType === 'iem' || item.category === 'iem_station'
+      ? 'iem'
+      : item.speakerType === 'passive_jack'
       ? 'passive_jack'
       : (item.speakerType === 'passive_speakon' || item.speakerType === 'passive')
       ? 'passive_speakon'
       : 'active';
 
-  const [speakerType, setSpeakerType] = useState<'active' | 'passive_speakon' | 'passive_jack'>(initialSpeakerType);
+  const [speakerType, setSpeakerType] = useState<'active' | 'passive_speakon' | 'passive_jack' | 'iem'>(initialSpeakerType);
   const [outputPort, setOutputPort] = useState<string>(
     item.assignedOutputPort || (isPASpeaker ? 'Main L' : 'Aux 1')
   );
@@ -129,8 +133,8 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
 
     if (item.subType === 'drums') {
       if (nextIndex === 2) { defaultName = 'Virbl (Snare)'; defaultMic = 'Shure SM57 (Nástroj/Kombo)'; }
-      else if (nextIndex === 3) { defaultName = 'Overhead L'; defaultMic = 'Rode NT5 (Kondenzátor)'; }
-      else if (nextIndex === 4) { defaultName = 'Overhead R'; defaultMic = 'Rode NT5 (Kondenzátor)'; }
+      else if (nextIndex === 3) { defaultName = 'Overhead L'; defaultMic = 'Behringer C2 (Kondenzátor tužka)'; }
+      else if (nextIndex === 4) { defaultName = 'Overhead R'; defaultMic = 'Behringer C2 (Kondenzátor tužka)'; }
       else if (nextIndex === 5) { defaultName = 'Tom 1'; defaultMic = 'Sennheiser e604 (Tom clip)'; }
       else if (nextIndex === 6) { defaultName = 'Floor Tom'; defaultMic = 'Sennheiser e604 (Tom clip)'; }
     }
@@ -141,6 +145,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
       pickupType: 'mic',
       micModel: defaultMic,
       stand: 'high_boom',
+      needsPhantom48V: defaultMic.includes('C2'),
     };
     setChannels([...channels, newCh]);
   };
@@ -161,7 +166,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
       ...item,
       name,
       channels,
-      needsPower230V: isSpeakerOrWedge ? (speakerType === 'active') : needsPower,
+      needsPower230V: isSpeakerOrWedge ? (speakerType === 'active' || speakerType === 'iem') : needsPower,
       rotation,
       ...(isSpeakerOrWedge ? {
         speakerType,
@@ -297,12 +302,12 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                 <span>Typ reprobedny &amp; výstup XR18</span>
               </span>
 
-              {/* 3 Speaker Types */}
+              {/* 4 Speaker / Monitor Types */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-300 block">
-                  Typ reprobedny &amp; kabeláže:
+                  Typ odposlechu / reprobedny &amp; kabeláže:
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setSpeakerType('active')}
@@ -317,6 +322,22 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                       <span>Aktivní bedna</span>
                     </div>
                     <div className="text-[9px] opacity-80 mt-0.5">XLR signál + 230V proud</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSpeakerType('iem')}
+                    className={`p-2 rounded-xl border text-center transition active:scale-95 ${
+                      speakerType === 'iem'
+                        ? 'bg-purple-600 border-purple-400 text-white font-bold shadow-md shadow-purple-600/30 ring-1 ring-purple-300'
+                        : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold flex items-center justify-center gap-1">
+                      <Headphones className="w-3.5 h-3.5 text-purple-300" />
+                      <span>In-Ear (IEM)</span>
+                    </div>
+                    <div className="text-[9px] opacity-80 mt-0.5">Aux XLR + 230V vysílač</div>
                   </button>
 
                   <button
@@ -490,8 +511,8 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                         )}
                       </div>
 
-                      {/* 3-way Pickup Mode */}
-                      <div className="grid grid-cols-3 gap-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-750">
+                      {/* 4-way Pickup Mode */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-slate-900/90 p-0.5 rounded-xl border border-slate-750">
                         <button
                           type="button"
                           onClick={() =>
@@ -501,7 +522,7 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                               stand: ch.stand === 'none' ? 'high_boom' : ch.stand,
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
+                          className={`py-1.5 rounded-lg text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'mic'
                               ? 'bg-rose-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
@@ -515,11 +536,12 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                           onClick={() =>
                             handleUpdateChannel(ch.id, {
                               pickupType: 'line_xlr',
-                              micModel: POPULAR_DIRECT_XLR[0],
+                              micModel: 'Přímá XLR linka (Direct Out)',
                               stand: 'none',
+                              needsPhantom48V: false,
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
+                          className={`py-1.5 rounded-lg text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'line_xlr'
                               ? 'bg-sky-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
@@ -533,35 +555,52 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                           onClick={() =>
                             handleUpdateChannel(ch.id, {
                               pickupType: 'line_jack',
-                              micModel: POPULAR_JACKS[0],
+                              micModel: 'Linka Jack 6.3mm',
                               stand: 'none',
+                              needsPhantom48V: false,
                             })
                           }
-                          className={`py-1 rounded text-[10px] font-bold transition text-center active:scale-95 ${
+                          className={`py-1.5 rounded-lg text-[10px] font-bold transition text-center active:scale-95 ${
                             ch.pickupType === 'line_jack' || ch.pickupType === 'line'
                               ? 'bg-amber-600 text-white shadow'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          🔌 Jack 6.3mm
+                          🔌 Jen Jack 6.3
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleUpdateChannel(ch.id, {
+                              pickupType: 'line_di',
+                              micModel: 'Jack 6.3mm + DI Box',
+                              stand: 'none',
+                              needsPhantom48V: false,
+                            })
+                          }
+                          className={`py-1.5 rounded-lg text-[10px] font-bold transition text-center active:scale-95 ${
+                            ch.pickupType === 'line_di'
+                              ? 'bg-emerald-600 text-white shadow'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          📦 Jack + DI Box
                         </button>
                       </div>
 
-                      {/* Quick Select Buttons (Chips) without Keyboard */}
+                      {/* Detail selector based on selected pickup mode */}
                       <div className="space-y-1">
-                        <span className="text-[10px] text-slate-400 font-semibold block">
-                          {ch.pickupType === 'mic'
-                            ? 'Zvolte model mikrofonu (1 klepnutím):'
-                            : ch.pickupType === 'line_xlr'
-                            ? 'Zvolte typ přímé linky XLR:'
-                            : 'Zvolte typ linky Jack 6.3mm:'}
-                        </span>
-
-                        <div className="flex flex-wrap gap-1">
-                          {ch.pickupType === 'mic' && (
-                            <>
+                        {ch.pickupType === 'mic' && (
+                          <>
+                            <span className="text-[10px] text-slate-400 font-semibold block">
+                              Zvolte model mikrofonu (1 klepnutím):
+                            </span>
+                            <div className="flex flex-wrap gap-1">
                               {POPULAR_MICS.map((mic) => {
-                                const isSelected = ch.micModel?.includes(mic.label);
+                                const isSelected = 
+                                  ch.micModel?.includes(mic.label) || 
+                                  (mic.label === 'Behringer C2' && (ch.micModel?.toLowerCase().includes('c2') || ch.micModel?.includes('C2')));
                                 return (
                                   <button
                                     key={mic.label}
@@ -584,77 +623,48 @@ export const ConfigureItemModal: React.FC<ConfigureItemModalProps> = ({
                                   </button>
                                 );
                               })}
-                            </>
-                          )}
 
-                          {ch.pickupType === 'line_xlr' && (
-                            <>
-                              {POPULAR_DIRECT_XLR.map((xlr) => {
-                                const isSelected = ch.micModel === xlr;
-                                return (
-                                  <button
-                                    key={xlr}
-                                    type="button"
-                                    onClick={() => {
-                                      handleUpdateChannel(ch.id, { micModel: xlr });
-                                      setCustomInputOpenFor({ ...customInputOpenFor, [ch.id]: false });
-                                    }}
-                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
-                                      isSelected
-                                        ? 'bg-sky-600 text-white shadow ring-1 ring-sky-300'
-                                        : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
-                                    }`}
-                                  >
-                                    {xlr}
-                                  </button>
-                                );
-                              })}
-                            </>
-                          )}
+                              {/* Custom Toggle */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCustomInputOpenFor({
+                                    ...customInputOpenFor,
+                                    [ch.id]: !isCustomOpen,
+                                  })
+                                }
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                                  isCustomOpen
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-900 text-slate-400 border border-slate-700 hover:text-slate-200'
+                                }`}
+                              >
+                                ✏️ Vlastní...
+                              </button>
+                            </div>
+                          </>
+                        )}
 
-                          {ch.pickupType !== 'mic' && ch.pickupType !== 'line_xlr' && (
-                            <>
-                              {POPULAR_JACKS.map((jk) => {
-                                const isSelected = ch.micModel === jk;
-                                return (
-                                  <button
-                                    key={jk}
-                                    type="button"
-                                    onClick={() => {
-                                      handleUpdateChannel(ch.id, { micModel: jk });
-                                      setCustomInputOpenFor({ ...customInputOpenFor, [ch.id]: false });
-                                    }}
-                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
-                                      isSelected
-                                        ? 'bg-amber-600 text-white shadow ring-1 ring-amber-300'
-                                        : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
-                                    }`}
-                                  >
-                                    {jk}
-                                  </button>
-                                );
-                              })}
-                            </>
-                          )}
+                        {ch.pickupType === 'line_xlr' && (
+                          <div className="p-2 rounded-lg bg-sky-950/50 border border-sky-800 text-[10px] text-sky-200 flex items-center justify-between gap-2">
+                            <span>⚡ <b>Přímá XLR linka:</b> Symetrický kabel XLR z nástrojového preampu, basového aparátu (DI Out) nebo digitálního modeleru (Kemper / Quad Cortex) přímo do mixu.</span>
+                            <span className="text-[9px] font-mono bg-sky-900 px-1.5 py-0.5 rounded text-sky-300 shrink-0">XLR</span>
+                          </div>
+                        )}
 
-                          {/* Custom Toggle */}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCustomInputOpenFor({
-                                ...customInputOpenFor,
-                                [ch.id]: !isCustomOpen,
-                              })
-                            }
-                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
-                              isCustomOpen
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-slate-900 text-slate-400 border border-slate-700 hover:text-slate-200'
-                            }`}
-                          >
-                            ✏️ Vlastní...
-                          </button>
-                        </div>
+                        {ch.pickupType === 'line_jack' && (
+                          <div className="p-2 rounded-lg bg-amber-950/50 border border-amber-800 text-[10px] text-amber-200 flex items-center justify-between gap-2">
+                            <span>🔌 <b>Jen Jack 6.3mm:</b> Nástrojový kabel Jack 6.3mm zapojený přímo do nástrojového vstupu mixu (Hi-Z CH 1/2 nebo linka kláves).</span>
+                            <span className="text-[9px] font-mono bg-amber-900 px-1.5 py-0.5 rounded text-amber-300 shrink-0">Jack 6.3mm</span>
+                          </div>
+                        )}
+
+                        {ch.pickupType === 'line_di' && (
+                          <div className="p-2 rounded-lg bg-emerald-950/50 border border-emerald-800 text-[10px] text-emerald-200 flex items-center justify-between gap-2">
+                            <span>📦 <b>Jack + DI Box:</b> Krátký nástrojový Jack 6.3mm do pódiového DI boxu + symetrický XLR kabel do XR18. Tento DI box se automaticky započítá do soupisky techniky!</span>
+                            <span className="text-[9px] font-mono bg-emerald-900 px-1.5 py-0.5 rounded text-emerald-300 shrink-0">DI Box + XLR</span>
+                          </div>
+                        )}
 
                         {/* Optional text input if custom chosen */}
                         {isCustomOpen && (

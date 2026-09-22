@@ -20,7 +20,7 @@ interface XR18PatchModalProps {
     needsPhantom: boolean, 
     cableLength: number,
     micModel?: string,
-    pickupType?: 'mic' | 'line_xlr' | 'line_jack' | 'line'
+    pickupType?: 'mic' | 'line_xlr' | 'line_jack' | 'line_di' | 'line'
   ) => void;
   onUnpatch: (channelId: string) => void;
   onClose: () => void;
@@ -33,7 +33,7 @@ const POPULAR_MICS = [
   { label: 'Sennheiser e604', full: 'Sennheiser e604 (Tom clip)', phantom: false },
   { label: 'Shure Beta 91A', full: 'Shure Beta 91A (Kopák hraniční)', phantom: true },
   { label: 'Shure Beta 52A', full: 'Shure Beta 52A (Kopák basový)', phantom: false },
-  { label: 'Røde NT5', full: 'Rode NT5 (Kondenzátor)', phantom: true },
+  { label: 'Behringer C2', full: 'Behringer C2 (Kondenzátor tužka)', phantom: true },
 ];
 
 const POPULAR_DIRECT_XLR = [
@@ -92,7 +92,7 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
   })();
 
   const [selectedXR18Channel, setSelectedXR18Channel] = useState<number>(currentCh);
-  const [pickupType, setPickupType] = useState<'mic' | 'line_xlr' | 'line_jack'>(
+  const [pickupType, setPickupType] = useState<'mic' | 'line_xlr' | 'line_jack' | 'line_di'>(
     (activeSubChannel.pickupType as any) || 'mic'
   );
   const [micModel, setMicModel] = useState<string>(activeSubChannel.micModel || 'Shure SM58 (Zpěv)');
@@ -187,8 +187,8 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
               </label>
             </div>
 
-            {/* 3 Signal Types: Mic vs XLR Direct vs Jack */}
-            <div className="grid grid-cols-3 gap-1 bg-slate-900/90 p-0.5 rounded-xl border border-slate-750">
+            {/* 4 Signal Types: Mic vs XLR Direct vs Just Jack vs Jack + DI Box */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-slate-900/90 p-0.5 rounded-xl border border-slate-750">
               <button
                 type="button"
                 onClick={() => {
@@ -205,11 +205,12 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
               >
                 🎙️ Mikrofon
               </button>
+
               <button
                 type="button"
                 onClick={() => {
                   setPickupType('line_xlr');
-                  setMicModel(POPULAR_DIRECT_XLR[0]);
+                  setMicModel('Přímá XLR linka (Direct Out)');
                   setNeedsPhantom(false);
                   setIsCustomMic(false);
                 }}
@@ -221,11 +222,12 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
               >
                 ⚡ Přímá XLR
               </button>
+
               <button
                 type="button"
                 onClick={() => {
                   setPickupType('line_jack');
-                  setMicModel(POPULAR_JACKS[0]);
+                  setMicModel('Linka Jack 6.3mm');
                   setNeedsPhantom(false);
                   setIsCustomMic(false);
                 }}
@@ -235,25 +237,39 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                🔌 Jack 6.3mm
+                🔌 Jen Jack 6.3
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPickupType('line_di');
+                  setMicModel('Jack 6.3mm + DI Box');
+                  setNeedsPhantom(false);
+                  setIsCustomMic(false);
+                }}
+                className={`py-1.5 rounded-lg text-[10px] font-bold transition text-center active:scale-95 ${
+                  pickupType === 'line_di'
+                    ? 'bg-emerald-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                📦 Jack + DI Box
               </button>
             </div>
 
-            {/* Microphones Quick Choice Chips */}
+            {/* Signal Details based on selected pickup mode */}
             <div className="space-y-1 pt-1">
-              <span className="text-[10px] text-slate-400 font-semibold block">
-                {pickupType === 'mic'
-                  ? 'Zvolte model mikrofonu (1 klepnutím):'
-                  : pickupType === 'line_xlr'
-                  ? 'Zvolte typ přímé linky XLR:'
-                  : 'Zvolte typ linky Jack:'}
-              </span>
-
-              <div className="flex flex-wrap gap-1">
-                {pickupType === 'mic' && (
-                  <>
+              {pickupType === 'mic' && (
+                <>
+                  <span className="text-[10px] text-slate-400 font-semibold block">
+                    Zvolte model mikrofonu (1 klepnutím):
+                  </span>
+                  <div className="flex flex-wrap gap-1">
                     {POPULAR_MICS.map((m) => {
-                      const isSelected = micModel?.includes(m.label);
+                      const isSelected = 
+                        micModel?.includes(m.label) || 
+                        (m.label === 'Behringer C2' && (micModel?.toLowerCase().includes('c2') || micModel?.includes('C2')));
                       return (
                         <button
                           key={m.label}
@@ -278,71 +294,42 @@ export const XR18PatchModal: React.FC<XR18PatchModalProps> = ({
                         </button>
                       );
                     })}
-                  </>
-                )}
 
-                {pickupType === 'line_xlr' && (
-                  <>
-                    {POPULAR_DIRECT_XLR.map((xlr) => {
-                      const isSelected = micModel === xlr;
-                      return (
-                        <button
-                          key={xlr}
-                          type="button"
-                          onClick={() => {
-                            setMicModel(xlr);
-                            setIsCustomMic(false);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
-                            isSelected
-                              ? 'bg-sky-600 text-white shadow ring-1 ring-sky-300'
-                              : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
-                          }`}
-                        >
-                          {xlr}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomMic(!isCustomMic)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                        isCustomMic
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-900 text-slate-400 border border-slate-700 hover:text-slate-200'
+                      }`}
+                    >
+                      ✏️ Vlastní...
+                    </button>
+                  </div>
+                </>
+              )}
 
-                {pickupType === 'line_jack' && (
-                  <>
-                    {POPULAR_JACKS.map((jk) => {
-                      const isSelected = micModel === jk;
-                      return (
-                        <button
-                          key={jk}
-                          type="button"
-                          onClick={() => {
-                            setMicModel(jk);
-                            setIsCustomMic(false);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition active:scale-95 ${
-                            isSelected
-                              ? 'bg-amber-600 text-white shadow ring-1 ring-amber-300'
-                              : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
-                          }`}
-                        >
-                          {jk}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
+              {pickupType === 'line_xlr' && (
+                <div className="p-2 rounded-lg bg-sky-950/50 border border-sky-800 text-[10px] text-sky-200 flex items-center justify-between gap-2">
+                  <span>⚡ <b>Přímá XLR linka:</b> Symetrický XLR signál z nástrojového preampu, aparátu (DI Out) nebo procesoru do vstupu XR18.</span>
+                  <span className="text-[9px] font-mono bg-sky-900 px-1.5 py-0.5 rounded text-sky-300 shrink-0">XLR</span>
+                </div>
+              )}
 
-                <button
-                  type="button"
-                  onClick={() => setIsCustomMic(!isCustomMic)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
-                    isCustomMic
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-900 text-slate-400 border border-slate-700 hover:text-slate-200'
-                  }`}
-                >
-                  ✏️ Vlastní...
-                </button>
-              </div>
+              {pickupType === 'line_jack' && (
+                <div className="p-2 rounded-lg bg-amber-950/50 border border-amber-800 text-[10px] text-amber-200 flex items-center justify-between gap-2">
+                  <span>🔌 <b>Jen Jack 6.3mm:</b> Nástrojový kabel zapojený přímo do XR18 (pro kytaru do Hi-Z CH 1/2, pro klávesy do linky).</span>
+                  <span className="text-[9px] font-mono bg-amber-900 px-1.5 py-0.5 rounded text-amber-300 shrink-0">Jack 6.3mm</span>
+                </div>
+              )}
+
+              {pickupType === 'line_di' && (
+                <div className="p-2 rounded-lg bg-emerald-950/50 border border-emerald-800 text-[10px] text-emerald-200 flex items-center justify-between gap-2">
+                  <span>📦 <b>Jack + DI Box:</b> Krátký Jack z nástroje do pódiového DI boxu + XLR do XR18. DI box bude automaticky započten do soupisky!</span>
+                  <span className="text-[9px] font-mono bg-emerald-900 px-1.5 py-0.5 rounded text-emerald-300 shrink-0">DI Box + XLR</span>
+                </div>
+              )}
 
               {isCustomMic && (
                 <div className="pt-1.5 animate-in fade-in">

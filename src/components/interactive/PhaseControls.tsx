@@ -33,7 +33,8 @@ import {
   CreditCard,
   Phone,
   Mail,
-  Speaker
+  Speaker,
+  Headphones
 } from 'lucide-react';
 import { exportInvoiceAndRiderPdf } from '../../utils/pdfExport';
 
@@ -48,6 +49,7 @@ interface PhaseControlsProps {
   onUpdateInvoice: (invoice: InvoiceData) => void;
   onAddItem: (item: Partial<InteractiveStageItem>) => void;
   onAutoPatchAll: () => void;
+  onAutoPowerWiring?: () => void;
   onResetProject: () => void;
 }
 
@@ -70,6 +72,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   onUpdateInvoice,
   onAddItem,
   onAutoPatchAll,
+  onAutoPowerWiring,
   onResetProject,
 }) => {
   const [copiedRider, setCopiedRider] = useState(false);
@@ -127,7 +130,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
           id: 'ch-d3-' + Date.now(),
           name: 'Overhead L',
           pickupType: 'mic',
-          micModel: 'Rode NT5 (Kondenzátor)',
+          micModel: 'Behringer C2 (Kondenzátor tužka)',
           stand: 'high_boom',
           needsPhantom48V: true,
         },
@@ -135,7 +138,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
           id: 'ch-d4-' + Date.now(),
           name: 'Overhead R',
           pickupType: 'mic',
-          micModel: 'Rode NT5 (Kondenzátor)',
+          micModel: 'Behringer C2 (Kondenzátor tužka)',
           stand: 'high_boom',
           needsPhantom48V: true,
         },
@@ -293,7 +296,19 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
     );
   };
 
-  // 2. POWER STRIP ADD HANDLER ("Prodlužka 230V")
+  // 2. POWER HANDLERS ("Přípojka 230V" a "Prodlužka 230V")
+  const handleAddPowerSource = () => {
+    const count = items.filter((i) => i.subType === 'power_source').length;
+    onAddItem({
+      name: `Přípojka 230V #${count + 1}`,
+      category: 'power_source',
+      subType: 'power_source',
+      x: 15 + (count % 3) * 35,
+      y: 15,
+      needsPower230V: false,
+    });
+  };
+
   const handleAddPowerStrip = () => {
     const count = items.filter((i) => i.subType === 'power_strip').length;
     onAddItem({
@@ -331,7 +346,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   };
 
   const handleAddWedge = () => {
-    const wedgeCount = items.filter((i) => i.subType === 'wedge').length;
+    const wedgeCount = items.filter((i) => i.subType === 'wedge' || i.subType === 'monitor_wedge').length;
     const nextAux = wedgeCount < 6 ? `Aux ${wedgeCount + 1}` : 'Aux 1';
     onAddItem({
       name: `Wedge ${wedgeCount + 1}`,
@@ -343,6 +358,22 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
       y: 80,
       assignedOutputPort: nextAux,
       targetPerformer: `Muzikant ${wedgeCount + 1}`,
+    });
+  };
+
+  const handleAddIEM = () => {
+    const iemCount = items.filter((i) => i.speakerType === 'iem' || i.subType === 'iem_station').length;
+    const nextAux = iemCount < 6 ? `Aux ${iemCount + 1}` : 'Aux 1';
+    onAddItem({
+      name: `In-Ear (IEM) #${iemCount + 1}`,
+      category: 'monitor_wedge',
+      subType: 'iem_station',
+      speakerType: 'iem',
+      needsPower230V: true,
+      x: 35 + (iemCount % 4) * 15,
+      y: 75,
+      assignedOutputPort: nextAux,
+      targetPerformer: `Muzikant ${iemCount + 1}`,
     });
   };
 
@@ -381,15 +412,18 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
     } else if (channel.pickupType === 'line_xlr') {
       const model = channel.micModel || 'Přímá XLR linka (Direct Out)';
       lineCounts[model] = (lineCounts[model] || 0) + 1;
+    } else if (channel.pickupType === 'line_di') {
+      const model = channel.micModel || 'Jack 6.3mm + DI Box';
+      lineCounts[model] = (lineCounts[model] || 0) + 1;
     } else {
       const model = channel.micModel || 'Linkový signál Jack 6.3mm';
       lineCounts[model] = (lineCounts[model] || 0) + 1;
     }
   });
 
-  // Speakers counts
+  // Speakers & Monitors counts
   const paSpeakers = items.filter((i) => i.subType === 'pa_speaker');
-  const monitorWedges = items.filter((i) => ['wedge', 'monitor_wedge'].includes(i.subType));
+  const monitorWedges = items.filter((i) => ['wedge', 'monitor_wedge'].includes(i.subType) && i.speakerType !== 'iem' && i.subType !== 'iem_station');
 
   const isPassiveSpeakon = (s: InteractiveStageItem) => s.speakerType === 'passive_speakon' || s.speakerType === 'passive';
   const isPassiveJack = (s: InteractiveStageItem) => s.speakerType === 'passive_jack';
@@ -403,25 +437,30 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
   const passiveSpeakonWedgeCount = monitorWedges.filter(isPassiveSpeakon).length;
   const passiveJackWedgeCount = monitorWedges.filter(isPassiveJack).length;
 
+  // DI boxes, IEM stations, and Power sources counts
+  const totalDiBoxes = allInstrumentChannels.filter((c) => c.channel.pickupType === 'line_di').length;
+  const totalIemStations = items.filter((i) => i.speakerType === 'iem' || i.subType === 'iem_station').length;
+  const totalPowerSources = items.filter((i) => i.subType === 'power_source').length;
+
   // Accurate Cables Count:
-  // XLR: mic channels + direct XLR line channels + active PA + active wedges
+  // XLR: mic channels + direct XLR line channels + DI box outputs + active PA + active wedges + IEM stations (Aux XLR)
   const totalInstrumentXlr = allInstrumentChannels.filter(
-    (c) => c.channel.pickupType === 'mic' || c.channel.pickupType === 'line_xlr'
+    (c) => c.channel.pickupType === 'mic' || c.channel.pickupType === 'line_xlr' || c.channel.pickupType === 'line_di'
   ).length;
-  const totalXlrRequired = totalInstrumentXlr + activePaCount + activeWedgeCount;
+  const totalXlrRequired = totalInstrumentXlr + activePaCount + activeWedgeCount + totalIemStations;
 
   // Speakon: passive PA + passive wedges with speakon
   const totalSpeakonRequired = passiveSpeakonPaCount + passiveSpeakonWedgeCount;
 
-  // Jack 6.3mm: instrument line channels + passive PA/wedges with jack
+  // Jack 6.3mm: instrument line channels (including instrument to DI box) + passive PA/wedges with jack
   const totalInstrumentJack = allInstrumentChannels.filter(
-    (c) => c.channel.pickupType === 'line_jack' || c.channel.pickupType === 'line'
+    (c) => c.channel.pickupType === 'line_jack' || c.channel.pickupType === 'line' || c.channel.pickupType === 'line_di'
   ).length;
   const totalJackRequired = totalInstrumentJack + passiveJackPaCount + passiveJackWedgeCount;
 
   // 230V power strips and power cords
   const totalPowerStrips = items.filter((i) => i.subType === 'power_strip').length;
-  const totalPoweredDevices = items.filter((i) => i.needsPower230V && i.subType !== 'power_strip').length;
+  const totalPoweredDevices = items.filter((i) => i.needsPower230V && i.subType !== 'power_strip' && i.subType !== 'power_source').length;
 
   // SAFE INVOICE FALLBACK
   const curInvoice: InvoiceData = {
@@ -496,6 +535,9 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
         totalJackRequired,
         totalPowerStrips,
         totalPoweredDevices,
+        totalDiBoxes,
+        totalPowerSources,
+        totalIemStations,
         micCounts,
         standCounts,
       });
@@ -531,6 +573,8 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
           ? (channel.micModel || 'Mikrofon XLR')
           : channel.pickupType === 'line_xlr'
           ? (channel.micModel || 'Přímá XLR linka (Direct Out)')
+          : channel.pickupType === 'line_di'
+          ? (channel.micModel || 'Jack 6.3mm + DI Box')
           : (channel.micModel || 'Linka Jack 6.3mm');
       const phantom = channel.needsPhantom48V ? '[+48V]' : '';
       t += `${ch} ${name} | ${micOrLine} ${phantom}\n`;
@@ -541,7 +585,9 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
       .filter((i) => i.assignedOutputPort)
       .forEach((it) => {
         const typeStr =
-          it.speakerType === 'passive_speakon' || it.speakerType === 'passive'
+          it.speakerType === 'iem' || it.subType === 'iem_station'
+            ? 'In-Ear Monitor (IEM vysílač)'
+            : it.speakerType === 'passive_speakon' || it.speakerType === 'passive'
             ? 'Pasivní (Speakon ze zesilovače)'
             : it.speakerType === 'passive_jack'
             ? 'Pasivní (Jack 6.3mm ze zesilovače)'
@@ -550,13 +596,22 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
       });
 
     t += `\nSEZNAM POTŘEBNÉ TECHNIKY DO AUTA:\n`;
-    t += `- XLR kabely celkem: ${totalXlrRequired} ks (mikrofony, přímé XLR linky + aktivní bedny)\n`;
+    t += `- XLR kabely celkem: ${totalXlrRequired} ks (mikrofony, přímé XLR linky, DI boxy + aktivní bedny/IEM)\n`;
     if (totalSpeakonRequired > 0) {
       t += `- Speakon kabely: ${totalSpeakonRequired} ks (pasivní bedny ze zesilovače)\n`;
     }
-    t += `- Jack 6.3mm kabely: ${totalJackRequired} ks\n`;
+    t += `- Jack 6.3mm kabely: ${totalJackRequired} ks (nástroje, klávesy, vstupy do DI boxů)\n`;
+    if (totalDiBoxes > 0) {
+      t += `- DI Boxy: ${totalDiBoxes} ks\n`;
+    }
+    if (totalIemStations > 0) {
+      t += `- In-Ear (IEM) bezdrátové stanice: ${totalIemStations} ks\n`;
+    }
     t += `- Prodlužky 230V: ${totalPowerStrips} ks\n`;
-    t += `- Připojení 230V (aparáty a bedny): ${totalPoweredDevices} ks\n`;
+    if (totalPowerSources > 0) {
+      t += `- Přípojky 230V na pódiu: ${totalPowerSources} ks\n`;
+    }
+    t += `- Připojení 230V (spotřebiče na pódiu): ${totalPoweredDevices} ks\n`;
 
     navigator.clipboard.writeText(t);
     setCopiedRider(true);
@@ -668,7 +723,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
 
           <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] text-slate-300 flex items-center justify-between gap-3">
             <span>
-              💡 Klepněte na libovolný nástroj a zvolte <b>model mikrofonu</b> (Shure SM58, SM57, e604, Beta 91A, Beta 52A, NT5...), <b>vstup XR18 (CH 1–16)</b> a <b>phantom +48V</b>.
+              💡 Klepněte na libovolný nástroj a zvolte <b>model mikrofonu</b> (Shure SM58, SM57, e604, Beta 91A, Beta 52A, Behringer C2...), <b>vstup XR18 (CH 1–16)</b> a <b>phantom +48V</b>.
             </span>
 
             <button
@@ -686,23 +741,42 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
       {/* PHASE 3: ELEKTŘINA 230V TOOLBAR */}
       {currentPhase === 3 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl space-y-2">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="font-bold text-white flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-red-400" />
-              <span>3. Rozvod elektřiny 230V pro aparáty a aktivní bedny:</span>
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>3. Rozvod elektřiny 230V (Přípojky &amp; Prodlužky):</span>
             </span>
-            <button
-              onClick={handleAddPowerStrip}
-              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Prodlužka 230V</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleAddPowerSource}
+                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Přípojka 230V</span>
+              </button>
+              <button
+                onClick={handleAddPowerStrip}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-amber-300 border border-amber-600/50 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Prodlužka 230V</span>
+              </button>
+              {onAutoPowerWiring && (
+                <button
+                  onClick={onAutoPowerWiring}
+                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow"
+                  title="Automaticky vytvořit přívod 230V a zapojit prodlužky i spotřebiče"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Auto-zapojit 230V</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <p className="text-[11px] text-slate-400 leading-tight">
-            Symbol ⚡ označuje zařízení vyžadující 230V (aparáty, klávesy, aktivní reprobedny). 
-            Klepnutím na daný prvek ho propojíte s nejbližší <b>prodlužkou 230V</b>.
+            Symbol ⚡ označuje zařízení vyžadující 230V (aparáty, klávesy, aktivní reprobedny, IEM). 
+            Klepnutím na prvek propojíte prodlužku s přípojkou nebo spotřebič s prodlužkou.
           </p>
         </div>
       )}
@@ -710,10 +784,10 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
       {/* PHASE 4: PA & ODPOSLECHY TOOLBAR */}
       {currentPhase === 4 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl space-y-2">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="font-bold text-white flex items-center gap-1.5">
               <Volume2 className="w-4 h-4 text-sky-400" />
-              <span>4. Zapojení PA beden a Odposlechů (Aktivní vs Pasivní):</span>
+              <span>4. Zapojení PA beden, Odposlechů a In-Ear (IEM):</span>
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -728,11 +802,18 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
               >
                 + Odposlech Wedge
               </button>
+              <button
+                onClick={handleAddIEM}
+                className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span>+ In-Ear (IEM)</span>
+              </button>
             </div>
           </div>
 
           <p className="text-[11px] text-slate-400 leading-tight">
-            Klepnutím na bednu zvolíte typ: <b>⚡ Aktivní bedna</b> (XLR + 230V), <b>🔊 Pasivní + Speakon</b> nebo <b>🔌 Pasivní + Jack 6.3mm</b> (ze zesilovače), výstup z XR18 a pro koho odposlech je.
+            Klepnutím na bednu či IEM zvolíte typ: <b>⚡ Aktivní bedna</b> (XLR + 230V), <b>🔊 Pasivní + Speakon</b>, <b>🔌 Pasivní + Jack</b> nebo <b>🎧 In-Ear (IEM)</b>, výstup z XR18 a pro koho je.
           </p>
         </div>
       )}
@@ -1169,6 +1250,8 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                               ? (channel.micModel || 'Dynamický mikrofon')
                               : channel.pickupType === 'line_xlr'
                               ? (channel.micModel || 'Přímá XLR linka (Direct Out)')
+                              : channel.pickupType === 'line_di'
+                              ? (channel.micModel || 'Jack 6.3mm + DI Box')
                               : (channel.micModel || 'Linka Jack 6.3mm')}
                           </td>
                           <td className="py-2 px-2 text-center">
@@ -1183,6 +1266,8 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                           <td className="py-2 px-3 text-slate-600 font-mono text-[11px]">
                             {channel.pickupType === 'mic' || channel.pickupType === 'line_xlr'
                               ? `XLR kabel (${channel.cableLengthMeters || 10}m)`
+                              : channel.pickupType === 'line_di'
+                              ? `Jack do DI + XLR (${channel.cableLengthMeters || 10}m)`
                               : `Jack 6.3mm (${channel.cableLengthMeters || 6}m)`}
                           </td>
                         </tr>
@@ -1202,7 +1287,7 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
               <div className="space-y-2">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                   <Volume2 className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Výstupy &amp; Monitoring (Main PA &amp; Odposlechy Aux 1–6):</span>
+                  <span>Výstupy &amp; Monitoring (Main PA, Odposlechy &amp; IEM):</span>
                 </h3>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
@@ -1214,11 +1299,15 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                         className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 rounded font-mono font-black text-white text-[10px] bg-sky-700">
+                          <span className={`px-2 py-0.5 rounded font-mono font-black text-white text-[10px] ${
+                            it.speakerType === 'iem' || it.subType === 'iem_station' ? 'bg-purple-700' : 'bg-sky-700'
+                          }`}>
                             {it.assignedOutputPort}
                           </span>
                           <span className="text-[10px] font-semibold text-slate-500">
-                            {(it.speakerType === 'passive_speakon' || it.speakerType === 'passive')
+                            {it.speakerType === 'iem' || it.subType === 'iem_station'
+                              ? 'In-Ear (IEM)'
+                              : (it.speakerType === 'passive_speakon' || it.speakerType === 'passive')
                               ? 'Pasivní (Speakon)'
                               : it.speakerType === 'passive_jack'
                               ? 'Pasivní (Jack 6.3mm)'
@@ -1247,11 +1336,11 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                 </h3>
 
                 {/* Cable summary badges */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
                   <div className="p-3 rounded-2xl bg-sky-50 border border-sky-200">
                     <span className="text-[10px] text-sky-800 block font-bold uppercase">XLR kabely:</span>
                     <span className="text-xl font-black text-sky-900 font-mono">{totalXlrRequired} ks</span>
-                    <span className="text-[9px] text-sky-700 block mt-0.5">miky + XLR linky + PA</span>
+                    <span className="text-[9px] text-sky-700 block mt-0.5">miky + linky + PA/IEM</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-orange-50 border border-orange-200">
@@ -1263,13 +1352,31 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                   <div className="p-3 rounded-2xl bg-yellow-50 border border-yellow-200">
                     <span className="text-[10px] text-yellow-800 block font-bold uppercase">Jack 6.3mm kabely:</span>
                     <span className="text-xl font-black text-yellow-900 font-mono">{totalJackRequired} ks</span>
-                    <span className="text-[9px] text-yellow-700 block mt-0.5">jack linky</span>
+                    <span className="text-[9px] text-yellow-700 block mt-0.5">jack linky &amp; DI</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200">
+                    <span className="text-[10px] text-amber-800 block font-bold uppercase">DI Boxy:</span>
+                    <span className="text-xl font-black text-amber-900 font-mono">{totalDiBoxes} ks</span>
+                    <span className="text-[9px] text-amber-700 block mt-0.5">galv. oddělení linky</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200">
+                    <span className="text-[10px] text-purple-800 block font-bold uppercase">IEM Stanice:</span>
+                    <span className="text-xl font-black text-purple-900 font-mono">{totalIemStations} ks</span>
+                    <span className="text-[9px] text-purple-700 block mt-0.5">bezdrát vysílače</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-red-50 border border-red-200">
                     <span className="text-[10px] text-red-800 block font-bold uppercase">Prodlužky 230V:</span>
                     <span className="text-xl font-black text-red-900 font-mono">{totalPowerStrips} ks</span>
                     <span className="text-[9px] text-red-700 block mt-0.5">{totalPoweredDevices} spotřebičů</span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[10px] text-emerald-800 block font-bold uppercase">Přípojky 230V:</span>
+                    <span className="text-xl font-black text-emerald-900 font-mono">{totalPowerSources} ks</span>
+                    <span className="text-[9px] text-emerald-700 block mt-0.5">hlavní přívod</span>
                   </div>
                 </div>
 

@@ -11,6 +11,9 @@ interface ExportPdfParams {
   totalJackRequired: number;
   totalPowerStrips: number;
   totalPoweredDevices: number;
+  totalDiBoxes?: number;
+  totalPowerSources?: number;
+  totalIemStations?: number;
   micCounts: Record<string, number>;
   standCounts: Record<string, number>;
 }
@@ -25,6 +28,9 @@ export function exportInvoiceAndRiderPdf({
   totalJackRequired,
   totalPowerStrips,
   totalPoweredDevices,
+  totalDiBoxes = 0,
+  totalPowerSources = 0,
+  totalIemStations = 0,
   micCounts,
   standCounts,
 }: ExportPdfParams): void {
@@ -368,6 +374,8 @@ export function exportInvoiceAndRiderPdf({
     const pickupDesc =
       channel.pickupType === 'line_xlr'
         ? (channel.micModel || 'Přímá XLR linka (DI Out)')
+        : channel.pickupType === 'line_di'
+        ? (channel.micModel || 'Jack 6.3mm + DI Box')
         : channel.pickupType === 'line_jack' || channel.pickupType === 'line'
         ? (channel.micModel || 'Linka Jack 6.3mm')
         : (channel.micModel || 'Mikrofon');
@@ -387,7 +395,7 @@ export function exportInvoiceAndRiderPdf({
     // Cable
     ctx2.fillStyle = '#475569';
     ctx2.font = '20px monospace';
-    const cableTypeStr = (channel.pickupType === 'line_jack' || channel.pickupType === 'line') ? 'Jack 6.3' : 'XLR';
+    const cableTypeStr = (channel.pickupType === 'line_jack' || channel.pickupType === 'line') ? 'Jack 6.3' : (channel.pickupType === 'line_di' ? 'DI+XLR' : 'XLR');
     ctx2.fillText(`${cableTypeStr} (${channel.cableLengthMeters || 10}m)`, 1320, inRowY + 30);
 
     inRowY += 44;
@@ -425,10 +433,13 @@ export function exportInvoiceAndRiderPdf({
 
     const isSpeakon = outItem.speakerType === 'passive_speakon' || outItem.speakerType === 'passive';
     const isJack = outItem.speakerType === 'passive_jack';
-    ctx2.fillStyle = isSpeakon ? '#c2410c' : isJack ? '#a16207' : '#0284c7';
+    const isIem = outItem.speakerType === 'iem' || outItem.category === 'iem_station';
+    ctx2.fillStyle = isIem ? '#7e22ce' : isSpeakon ? '#c2410c' : isJack ? '#a16207' : '#0284c7';
     ctx2.font = 'bold 19px sans-serif';
     ctx2.fillText(
-      isSpeakon
+      isIem
+        ? '🎧 In-Ear Monitor (Aux XLR + 230V vysílač)'
+        : isSpeakon
         ? '🔊 Pasivní bedna (Kabel Speakon)'
         : isJack
         ? '🔌 Pasivní bedna (Kabel Jack 6.3mm)'
@@ -512,20 +523,29 @@ export function exportInvoiceAndRiderPdf({
   // Detail lines below badges
   ctx2.fillStyle = '#334155';
   ctx2.font = 'bold 20px sans-serif';
-  ctx2.fillText('Potřebné mikrofony:', 110, checkY + 195);
+  ctx2.fillText('Pódiové přípojky, DI Boxy & In-Ear:', 110, checkY + 185);
+  ctx2.font = '19px sans-serif';
+  ctx2.fillText(
+    `Přípojky 230V: ${totalPowerSources} ks  •  DI Boxy: ${totalDiBoxes} ks  •  In-Ear vysílače: ${totalIemStations} ks  •  Spotřebiče 230V: ${totalPoweredDevices} ks`,
+    110,
+    checkY + 215
+  );
+
+  ctx2.font = 'bold 20px sans-serif';
+  ctx2.fillText('Potřebné mikrofony:', 110, checkY + 245);
   ctx2.font = '19px sans-serif';
   const micListStr = Object.entries(micCounts)
     .map(([m, c]) => `${m}: ${c}×`)
     .join('  •  ') || 'Žádné mikrofony';
-  ctx2.fillText(micListStr.slice(0, 110), 110, checkY + 230);
+  ctx2.fillText(micListStr.slice(0, 110), 110, checkY + 270);
 
   ctx2.font = 'bold 20px sans-serif';
-  ctx2.fillText('Mikrofonní stojany:', 110, checkY + 265);
+  ctx2.fillText('Mikrofonní stojany:', 110, checkY + 295);
   ctx2.font = '19px sans-serif';
   const standListStr = Object.entries(standCounts)
     .map(([s, c]) => `${s}: ${c}×`)
     .join('  •  ') || 'Stojany netřeba';
-  ctx2.fillText(standListStr.slice(0, 110), 110, checkY + 295);
+  ctx2.fillText(standListStr.slice(0, 110), 110, checkY + 318);
 
   // Add Page 2 to PDF
   const page2Data = canvas2.toDataURL('image/jpeg', 0.95);

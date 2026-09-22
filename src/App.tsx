@@ -15,7 +15,8 @@ import {
 import { InteractiveCanvas } from './components/interactive/InteractiveCanvas';
 import { PhaseControls } from './components/interactive/PhaseControls';
 import { ProjectManagerModal } from './components/interactive/ProjectManagerModal';
-import { RotateCcw, FolderOpen } from 'lucide-react';
+import { InstallAppModal } from './components/interactive/InstallAppModal';
+import { RotateCcw, FolderOpen, Smartphone } from 'lucide-react';
 
 export function App() {
   const [savedProjects, setSavedProjects] = useState<StageProject[]>(() => getAllSavedProjects());
@@ -26,6 +27,45 @@ export function App() {
   const [currentPhase, setCurrentPhase] = useState<StagePhase>(1);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [canDirectInstall, setCanDirectInstall] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+
+  // Catch PWA beforeinstallprompt
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setCanDirectInstall(true);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setCanDirectInstall(false);
+      console.log('StageMaster PWA was successfully installed.');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        setCanDirectInstall(false);
+      }
+      setDeferredPrompt(null);
+    } else {
+      setIsInstallModalOpen(true);
+    }
+  };
 
   // Auto-save changes to localStorage and update project list
   useEffect(() => {
@@ -120,7 +160,9 @@ export function App() {
           const isCondenser =
             ch.micModel?.toLowerCase().includes('overhead') ||
             ch.micModel?.toLowerCase().includes('kondenz') ||
+            ch.micModel?.toLowerCase().includes('c2') ||
             ch.micModel?.toLowerCase().includes('nt5') ||
+            ch.micModel?.toLowerCase().includes('beta 91') ||
             ch.micModel?.toLowerCase().includes('c414');
           ch.needsPhantom48V = isCondenser;
           ch.cableLengthMeters = 10;
@@ -144,6 +186,110 @@ export function App() {
     handleUpdateItems(newItems);
     handleUpdateCables(newCables);
     alert(`Úspěšně zapojeno ${totalPatched} kanálů do mixpultu Behringer XR18 (vstupy CH 1–${Math.min(16, totalPatched)})!`);
+  };
+
+  // Smart Auto-wire 230V electricity
+  const handleAutoPowerWiring = () => {
+    let powerSources = project.items.filter((i) => i.category === 'power_source' || i.subType === 'power_source');
+    let workingItems = [...project.items];
+
+    // If no power source exists, create one in backstage
+    if (powerSources.length === 0) {
+      const newSource: InteractiveStageItem = {
+        id: 'ps-' + Date.now(),
+        name: 'Přípojka 230V',
+        category: 'power_source',
+        subType: 'power_source',
+        x: 12,
+        y: 18,
+        channels: [],
+        needsPower230V: false,
+      };
+      workingItems.push(newSource);
+      powerSources = [newSource];
+    }
+
+    // If no power strip exists, create at least 2 strips for left and right stage
+    let powerStrips = workingItems.filter((i) => i.category === 'power_strip' || i.subType === 'power_strip');
+    if (powerStrips.length === 0) {
+      const strip1: InteractiveStageItem = {
+        id: 'strip-1-' + Date.now(),
+        name: 'Prodlužka 230V #1',
+        category: 'power_strip',
+        subType: 'power_strip',
+        x: 30,
+        y: 45,
+        channels: [],
+        needsPower230V: false,
+      };
+      const strip2: InteractiveStageItem = {
+        id: 'strip-2-' + Date.now(),
+        name: 'Prodlužka 230V #2',
+        category: 'power_strip',
+        subType: 'power_strip',
+        x: 70,
+        y: 45,
+        channels: [],
+        needsPower230V: false,
+      };
+      workingItems.push(strip1, strip2);
+      powerStrips = [strip1, strip2];
+    }
+
+    const defaultSource = powerSources[0];
+    let newCables: StageCable[] = project.cables.filter((c) => c.type !== 'power');
+
+    // 1. Connect each power strip to the nearest power source
+    const itemsWithStripsConnected = workingItems.map((it) => {
+      if (it.category === 'power_strip' || it.subType === 'power_strip') {
+        let nearestSource = defaultSource;
+        let minD = Infinity;
+        for (const ps of powerSources) {
+          const d = Math.hypot((ps.x ?? 50) - (it.x ?? 50), (ps.y ?? 50) - (it.y ?? 50));
+          if (d < minD) { minD = d; nearestSource = ps; }
+        }
+        newCables.push({
+          id: 'pwr-strip-' + it.id,
+          fromId: nearestSource.id,
+          toId: it.id,
+          type: 'power',
+          lengthMeters: 10,
+          label: '230V',
+        });
+        return { ...it, powerConnectedToId: nearestSource.id };
+      }
+      return it;
+    });
+
+    // 2. Connect each appliance needing 230V to nearest power strip (or power source)
+    const distributionPoints = powerStrips.length > 0 ? powerStrips : powerSources;
+    let wiredCount = 0;
+
+    const finalItems = itemsWithStripsConnected.map((it) => {
+      if (it.needsPower230V && it.category !== 'power_strip' && it.category !== 'power_source') {
+        let nearestPt = distributionPoints[0];
+        let minD = Infinity;
+        for (const dp of distributionPoints) {
+          const d = Math.hypot((dp.x ?? 50) - (it.x ?? 50), (dp.y ?? 50) - (it.y ?? 50));
+          if (d < minD) { minD = d; nearestPt = dp; }
+        }
+        newCables.push({
+          id: 'pwr-dev-' + it.id,
+          fromId: nearestPt.id,
+          toId: it.id,
+          type: 'power',
+          lengthMeters: 5,
+          label: '230V',
+        });
+        wiredCount++;
+        return { ...it, powerConnectedToId: nearestPt.id };
+      }
+      return it;
+    });
+
+    handleUpdateItems(finalItems);
+    handleUpdateCables(newCables);
+    alert(`Úspěšně zapojeno ${wiredCount} spotřebičů do rozvodu 230V!`);
   };
 
   const handleResetProject = () => {
@@ -183,8 +329,21 @@ export function App() {
             </div>
           </div>
 
-          {/* Action buttons: Plans & Reset */}
+          {/* Action buttons: Install, Plans & Reset */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleInstallClick}
+              className={`text-xs px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition font-bold shadow-md active:scale-95 ${
+                canDirectInstall
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/60 shadow-emerald-600/30 animate-pulse'
+                  : 'bg-slate-800 hover:bg-slate-750 text-emerald-400 border-slate-700'
+              }`}
+              title="Nainstalovat aplikaci do mobilu nebo PC"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Instalovat</span>
+            </button>
+
             <button
               onClick={() => setIsProjectManagerOpen(true)}
               className="text-xs text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-1.5 transition font-bold shadow-md shadow-indigo-600/30"
@@ -224,6 +383,7 @@ export function App() {
           onUpdateInvoice={handleUpdateInvoice}
           onAddItem={handleAddItem}
           onAutoPatchAll={handleAutoPatchAll}
+          onAutoPowerWiring={handleAutoPowerWiring}
           onResetProject={handleResetProject}
         />
 
@@ -258,6 +418,19 @@ export function App() {
           setSavedProjects(newList);
         }}
       />
+
+      {/* Install App Modal */}
+      {isInstallModalOpen && (
+        <InstallAppModal
+          onClose={() => setIsInstallModalOpen(false)}
+          onTriggerInstall={() => {
+            if (deferredPrompt) {
+              deferredPrompt.prompt();
+            }
+          }}
+          canDirectInstall={canDirectInstall}
+        />
+      )}
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-2.5 text-center text-[10px] text-slate-500">

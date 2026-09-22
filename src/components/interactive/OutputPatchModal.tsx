@@ -8,7 +8,8 @@ import {
   Trash2, 
   Zap,
   Cable,
-  User
+  User,
+  Headphones
 } from 'lucide-react';
 
 interface OutputPatchModalProps {
@@ -17,9 +18,10 @@ interface OutputPatchModalProps {
   onConfirmOutputPatch: (
     outputPort: string, 
     performer: string, 
-    speakerType: 'active' | 'passive_speakon' | 'passive_jack'
+    speakerType: 'active' | 'passive_speakon' | 'passive_jack' | 'iem'
   ) => void;
   onUnpatch: () => void;
+  onDelete?: (id: string) => void;
   onClose: () => void;
 }
 
@@ -28,6 +30,7 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
   allItems = [],
   onConfirmOutputPatch,
   onUnpatch,
+  onDelete,
   onClose,
 }) => {
   const isPASpeaker = item.subType === 'pa_speaker';
@@ -35,16 +38,19 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
   const [outputPort, setOutputPort] = useState<string>(defaultPort);
   const [performer, setPerformer] = useState<string>(item.targetPerformer || '');
   const [isCustomPerformer, setIsCustomPerformer] = useState<boolean>(false);
+  const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
 
-  // Normalise speakerType to 3 supported options
-  const initialType: 'active' | 'passive_speakon' | 'passive_jack' = 
-    item.speakerType === 'passive_jack'
+  // Normalise speakerType to 4 supported options
+  const initialType: 'active' | 'passive_speakon' | 'passive_jack' | 'iem' = 
+    item.speakerType === 'iem' || item.category === 'iem_station'
+      ? 'iem'
+      : item.speakerType === 'passive_jack'
       ? 'passive_jack'
       : (item.speakerType === 'passive_speakon' || item.speakerType === 'passive')
       ? 'passive_speakon'
       : 'active';
 
-  const [speakerType, setSpeakerType] = useState<'active' | 'passive_speakon' | 'passive_jack'>(initialType);
+  const [speakerType, setSpeakerType] = useState<'active' | 'passive_speakon' | 'passive_jack' | 'iem'>(initialType);
 
   const ports = isPASpeaker
     ? ['Main L', 'Main R']
@@ -95,12 +101,12 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
 
         {/* Scrollable Content */}
         <div className="p-3 sm:p-5 overflow-y-auto space-y-3 flex-1 text-xs overscroll-contain touch-pan-y pb-16 sm:pb-5">
-          {/* 3 Speaker Types: Active vs Passive Speakon vs Passive Jack */}
+          {/* 4 Speaker / Monitor Types: Active vs Passive Speakon vs Passive Jack vs In-Ear (IEM) */}
           <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-850/80 border border-slate-750">
             <label className="text-[11px] font-bold text-slate-200 block">
-              Typ reprobedny &amp; kabeláže:
+              Typ odposlechu / reprobedny &amp; signálu:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {/* Active */}
               <button
                 type="button"
@@ -116,6 +122,23 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
                   <span>Aktivní bedna</span>
                 </div>
                 <div className="text-[9px] opacity-80 mt-0.5">XLR signál + 230V proud</div>
+              </button>
+
+              {/* In-Ear (IEM) */}
+              <button
+                type="button"
+                onClick={() => setSpeakerType('iem')}
+                className={`p-2 rounded-xl border text-center transition active:scale-95 ${
+                  speakerType === 'iem'
+                    ? 'bg-purple-600 border-purple-400 text-white font-bold shadow-md shadow-purple-600/30 ring-1 ring-purple-300'
+                    : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                <div className="text-[11px] font-bold flex items-center justify-center gap-1">
+                  <Headphones className="w-3.5 h-3.5 text-purple-300" />
+                  <span>In-Ear (IEM)</span>
+                </div>
+                <div className="text-[9px] opacity-80 mt-0.5">Aux XLR + 230V vysílač</div>
               </button>
 
               {/* Passive Speakon */}
@@ -243,19 +266,56 @@ export const OutputPatchModal: React.FC<OutputPatchModalProps> = ({
 
         {/* Footer Actions */}
         <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-t border-slate-800 bg-slate-950/90 flex items-center justify-between gap-2 shrink-0">
-          {item.assignedOutputPort ? (
-            <button
-              type="button"
-              onClick={() => {
-                onUnpatch();
-                onClose();
-              }}
-              className="px-3 py-1.5 bg-red-950/50 hover:bg-red-900 border border-red-800 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Odpojit</span>
-            </button>
-          ) : <div />}
+          <div className="flex items-center gap-1.5">
+            {onDelete && (
+              confirmDelete ? (
+                <div className="flex items-center gap-1 animate-in fade-in">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDelete(item.id);
+                      onClose();
+                    }}
+                    className="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow"
+                  >
+                    Opravdu smazat?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/80 text-red-300 rounded-xl text-xs font-semibold flex items-center gap-1 transition active:scale-95"
+                  title="Smazat tento odposlech nebo bednu z pódia"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Smazat z pódia</span>
+                  <span className="sm:hidden">Smazat</span>
+                </button>
+              )
+            )}
+
+            {item.assignedOutputPort && (
+              <button
+                type="button"
+                onClick={() => {
+                  onUnpatch();
+                  onClose();
+                }}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl text-xs font-medium flex items-center gap-1 transition"
+                title="Odpojit výstup z XR18"
+              >
+                <span>Odpojit</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button

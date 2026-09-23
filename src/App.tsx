@@ -16,9 +16,11 @@ import { InteractiveCanvas } from './components/interactive/InteractiveCanvas';
 import { PhaseControls } from './components/interactive/PhaseControls';
 import { ProjectManagerModal } from './components/interactive/ProjectManagerModal';
 import { InstallAppModal } from './components/interactive/InstallAppModal';
-import { RotateCcw, FolderOpen, Smartphone } from 'lucide-react';
+import { RotateCcw, FolderOpen, Smartphone, ShieldAlert } from 'lucide-react';
+import { FeedbackHunterModal } from './components/interactive/FeedbackHunterModal';
 
 export function App() {
+  const [isFeedbackHunterOpen, setIsFeedbackHunterOpen] = useState(false);
   const [savedProjects, setSavedProjects] = useState<StageProject[]>(() => getAllSavedProjects());
   const [project, setProject] = useState<StageProject>(() => {
     const { active } = loadActiveStageProject();
@@ -307,9 +309,10 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-3 py-2.5 shadow-md">
+      {/* Top Header & Toolbar */}
+      <header className="bg-slate-900 border-b border-slate-800 px-3 py-2 sticky top-0 z-40 shadow-md">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+          {/* Logo & Band Name */}
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-black text-white text-xs shrink-0 shadow-lg shadow-indigo-600/30">
               XR
@@ -329,24 +332,23 @@ export function App() {
             </div>
           </div>
 
-          {/* Action buttons: Install, Plans & Reset */}
+          {/* Action buttons: Feedback Hunter, Plans, Reset, Install */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Feedback Hunter */}
             <button
-              onClick={handleInstallClick}
-              className={`text-xs px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition font-bold shadow-md active:scale-95 ${
-                canDirectInstall
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/60 shadow-emerald-600/30 animate-pulse'
-                  : 'bg-slate-800 hover:bg-slate-750 text-emerald-400 border-slate-700'
-              }`}
-              title="Nainstalovat aplikaci do mobilu nebo PC"
+              onClick={() => setIsFeedbackHunterOpen(true)}
+              className="text-xs px-2.5 sm:px-3 py-1.5 rounded-xl border border-red-500/40 bg-red-950/40 hover:bg-red-900/60 text-red-200 flex items-center gap-1.5 transition font-bold shadow-md shadow-red-950/40 active:scale-95"
+              title="Otevřít detektor akustické vazby & RTA spektrum"
             >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Instalovat</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Feedback Hunter</span>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-red-900/80 rounded text-red-300 border border-red-700/60">RTA</span>
             </button>
 
+            {/* Moje plány */}
             <button
               onClick={() => setIsProjectManagerOpen(true)}
-              className="text-xs text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-1.5 transition font-bold shadow-md shadow-indigo-600/30"
+              className="text-xs text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 px-2.5 sm:px-3 py-1.5 rounded-xl border border-indigo-500/40 flex items-center gap-1.5 transition font-bold shadow-md shadow-indigo-600/30"
               title="Otevřít správce stage plánů"
             >
               <FolderOpen className="w-3.5 h-3.5" />
@@ -364,6 +366,16 @@ export function App() {
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Vyčistit</span>
+            </button>
+
+            {/* Quick PWA Install button */}
+            <button
+              onClick={handleInstallClick}
+              className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-900 hover:bg-slate-850 text-slate-300 flex items-center gap-1.5 transition font-semibold"
+              title="Instalovat jako aplikaci"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Instalovat</span>
             </button>
           </div>
         </div>
@@ -404,6 +416,11 @@ export function App() {
         />
       </main>
 
+      {/* Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-2.5 text-center text-[10px] text-slate-500">
+        StageMaster Pro • Interaktivní příprava ozvučení kapely a stage plán pro Behringer XR18
+      </footer>
+
       {/* Project Manager Modal */}
       <ProjectManagerModal
         isOpen={isProjectManagerOpen}
@@ -433,10 +450,11 @@ export function App() {
         />
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-2.5 text-center text-[10px] text-slate-500">
-        StageMaster Pro • Interaktivní příprava ozvučení kapely a stage plán pro Behringer XR18
-      </footer>
+      {/* Feedback Hunter & RTA Modal */}
+      <FeedbackHunterModal
+        isOpen={isFeedbackHunterOpen}
+        onClose={() => setIsFeedbackHunterOpen(false)}
+      />
     </div>
   );
 }

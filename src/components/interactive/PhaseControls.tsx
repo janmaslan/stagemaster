@@ -43,6 +43,7 @@ import {
   exportStagePlanImage,
   exportStageCanvasImage 
 } from '../../utils/pdfExport';
+import { exportXR18SceneFile } from '../../utils/xr18SceneExport';
 
 interface PhaseControlsProps {
   currentPhase: StagePhase;
@@ -598,6 +599,16 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
     }
   };
 
+  // Export scene file for Behringer XR18 / X-Air
+  const handleExportXR18Scene = () => {
+    try {
+      exportXR18SceneFile({ items, cables, bandName });
+    } catch (err) {
+      console.error('XR18 Scene export error:', err);
+      alert('Nepodařilo se vyexportovat XR18 scénu.');
+    }
+  };
+
   // Copy plain text rider & vyúčtování
   const handleCopyTextRider = () => {
     let t = `FAKTURA / VYÚČTOVÁNÍ & TECHNICKÝ RIDER\n`;
@@ -924,6 +935,16 @@ export const PhaseControls: React.FC<PhaseControlsProps> = ({
                 <Camera className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden sm:inline">{isExportingImage ? 'Ukládám...' : 'Pódium (PNG)'}</span>
                 <span className="sm:hidden">PNG</span>
+              </button>
+
+              <button
+                onClick={handleExportXR18Scene}
+                className="px-2.5 py-2 bg-slate-800 hover:bg-slate-750 text-indigo-400 border border-indigo-600/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow"
+                title="Stáhnout scénu pro Behringer XR18 / X-Air (.scn) pro okamžité nahrání do pultu"
+              >
+                <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">XR18 Scéna (.scn)</span>
+                <span className="sm:hidden">XR18</span>
               </button>
 
               <button

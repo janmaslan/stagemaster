@@ -23,10 +23,12 @@ import {
   Volume2,
   CheckSquare,
   FolderOpen,
-  Camera
+  Camera,
+  Sliders
 } from 'lucide-react';
 import { getPresetInstrument } from '../../utils/stagePresets';
 import { exportStagePlanImage, exportStageCanvasImage } from '../../utils/pdfExport';
+import { exportXR18SceneFile } from '../../utils/xr18SceneExport';
 
 interface InteractiveCanvasProps {
   items: InteractiveStageItem[];
@@ -76,6 +78,15 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       alert('Nepodařilo se vygenerovat obrázek pódia.');
     } finally {
       setIsExportingImage(false);
+    }
+  };
+
+  const handleDownloadXR18Scene = () => {
+    try {
+      exportXR18SceneFile({ items, cables, bandName: bandName || 'StageMaster' });
+    } catch (err) {
+      console.error('Export XR18 scene failed:', err);
+      alert('Nepodařilo se vygenerovat XR18 scénu.');
     }
   };
 
@@ -762,6 +773,17 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               <Camera className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden sm:inline">{isExportingImage ? 'Ukládám...' : 'Stáhnout pódium (PNG)'}</span>
               <span className="sm:hidden">PNG</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadXR18Scene}
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-[11px] font-bold text-indigo-400 hover:text-white flex items-center gap-1.5 shadow transition active:scale-95 shrink-0"
+              title="Stáhnout scénu pro Behringer XR18 / X-Air (.scn)"
+            >
+              <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">XR18 (.scn)</span>
+              <span className="sm:hidden">XR18</span>
             </button>
 
             {onOpenProjectManager && (
